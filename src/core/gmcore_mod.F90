@@ -55,8 +55,8 @@ contains
     real(r8) seconds
 
     call log_init()
-    call global_mesh%init_global(num_lon, num_lat, num_lev, lon_halo_width=max(1, maxval(reduce_factors) - 1), lat_halo_width=2)
-    !call debug_check_areas()
+    call global_mesh%init_global(num_lon, num_lat, num_lev, lon_halo_width=max(2, maxval(reduce_factors) - 1), lat_halo_width=2)
+    call debug_check_areas()
     call process_init()
     call vert_coord_init(num_lev, namelist_path)
     call process_create_blocks()
@@ -108,6 +108,24 @@ contains
 
     call time_add_alert('print', seconds=seconds)
 
+    time_value = split_string(damp_interval, ' ', 1)
+    time_units = split_string(damp_interval, ' ', 2)
+    read(time_value, *) seconds
+    select case (time_units)
+    case ('days')
+      seconds = seconds * 86400
+    case ('hours')
+      seconds = seconds * 3600
+    case ('minutes')
+      seconds = seconds * 60
+    case ('seconds')
+      seconds = seconds
+    case default
+      call log_error('Invalid damp interval ' // trim(damp_interval) // '!')
+    end select
+
+    call time_add_alert('damp', seconds=seconds)
+
   end subroutine gmcore_init
 
   subroutine gmcore_run()
@@ -118,9 +136,9 @@ contains
 
     do while (.not. time_is_finished())
       call time_integrate(dt_in_seconds, proc%blocks)
-      if (proc%id == 0 .and. time_is_alerted('print')) call log_print_diag(curr_time%isoformat())
+      if (proc%id == 0 .and. time_is_alerted('print')) call log_print_diag(curr_time%isoformat())  
       call time_advance(dt_in_seconds)
-      call operators_prepare(proc%blocks, old, dt_in_seconds)
+      ! call operators_prepare(proc%blocks, old, dt_in_seconds)
       call diagnose(proc%blocks, old)
       call output(proc%blocks, old)
     end do
@@ -543,9 +561,25 @@ contains
       if (use_div_damp) then
         call div_damp(blocks(iblk), blocks(iblk)%state(old), blocks(iblk)%state(new), dt)
       end if
-      if (use_polar_damp) then
-        !call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
-        call shapiro_smooth(blocks(iblk), blocks(iblk)%state(new))
+      if (use_polar_damp .and. time_is_alerted('damp')) then
+        select case (damp_scheme)
+        case ('simple')
+          call latlon_damp_lon(blocks(iblk), dt, blocks(iblk)%state(new)%u)
+          call latlon_damp_lat(blocks(iblk), dt, blocks(iblk)%state(new)%v)
+        case ('direct')       
+          call latlon_damp_lon_4th(blocks(iblk), dt, blocks(iblk)%state(new)%u)
+          call latlon_damp_lat_4th(blocks(iblk), dt, blocks(iblk)%state(new)%v)
+        case ('limiter')
+          call latlon_damp_lon_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%u)
+          call latlon_damp_lat_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%v)
+        case ('shapiro_filter')
+!          call shapiro_filter_lon(blocks(iblk), shapiro_filter_order, blocks(iblk)%state(new)%u)
+!          call shapiro_filter_lat(blocks(iblk), shapiro_filter_order, blocks(iblk)%state(new)%v)
+          call shapiro_smooth(blocks(iblk), blocks(iblk)%state(new))
+          ! call shapiro_smooth_meridional(blocks(iblk), blocks(iblk)%state(new))
+        case default
+          call log_error('Invalid damp scheme ' // trim(damp_scheme) // '!')
+        end select
       end if
     end do
 

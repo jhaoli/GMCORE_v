@@ -5,6 +5,7 @@ module damp_mod
   use parallel_mod
   use block_mod
   use operators_mod
+  use allocator_mod
   use reduce_mod
 
   implicit none
@@ -19,7 +20,14 @@ module damp_mod
   public latlon_damp_lat
   public latlon_damp_cell
   public div_damp
+  public latlon_damp_lon_4th
+  public latlon_damp_lat_4th
+  public latlon_damp_lon_limiter
+  public latlon_damp_lat_limiter
+  public shapiro_filter_lon
+  public shapiro_filter_lat
   public shapiro_smooth
+  public shapiro_smooth_meridional
 
   integer, parameter :: diff_halo_width(2:8) = [1, 2, 2, 3, 3, 4, 4]
 
@@ -82,7 +90,7 @@ contains
         jr = global_mesh%half_lat_iend_no_pole - j + 1
       end if
 #ifdef V_POLE
-      ox_half_lat(j) = merge(max(polar_damp_order, min(zonal_damp_orders(jr), zonal_damp_orders(jr-1))), polar_damp_order, jr <= jr0)
+      ox_half_lat(j) = merge(max(polar_damp_order, min(zonal_damp_orders(jr), zonal_damp_orders(jr))), polar_damp_order, jr <= jr0)
 #else
       ox_half_lat(j) = merge(max(polar_damp_order, min(zonal_damp_orders(jr), zonal_damp_orders(jr+1))), polar_damp_order, jr <= jr0)
 #endif
@@ -104,8 +112,11 @@ contains
           else
             jr = global_mesh%full_lat_iend_no_pole - j + 1
           end if
-          cx_full_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
-          cy_full_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
+          cx_full_lat(j,k,4) = (global_mesh%full_cos_lat(j) * global_mesh%dlon * 0.5_r8)**4 / dt_in_seconds
+          cy_full_lat(j,k,4) = 1.0 / ((1.0_r8 + global_mesh%full_cos_lat(j)**2) / global_mesh%full_cos_lat(j)**2 * 4.0_r8 / &
+                          global_mesh%dlat(j)**2 + 16.0_r8 / global_mesh%dlat(j)**4) / dt_in_seconds
+          ! cx_full_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
+          ! cy_full_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
         end do
       end do
       do k = global_mesh%full_lev_ibeg, global_mesh%full_lev_iend
@@ -115,8 +126,11 @@ contains
           else
             jr = global_mesh%half_lat_iend_no_pole - j + 1
           end if
-          cx_half_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
-          cy_half_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
+          ! cx_half_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
+          ! cy_half_lat(j,k,order) = c0 * exp(-jr**2 / ((-jr0 / log(0.5)) * jr0))
+          cx_half_lat(j,k,order) = (global_mesh%half_cos_lat(j) * global_mesh%dlon * 0.5_r8)**4 / dt_in_seconds
+          cy_half_lat(j,k,order) = 1.0 / ((1.0_r8 + global_mesh%half_cos_lat(j)**2) / global_mesh%half_cos_lat(j)**2 * 4.0_r8 / &
+                          global_mesh%dlat(j)**2 + 16.0_r8 / global_mesh%dlat(j)**4) / dt_in_seconds
         end do
       end do
     end do
@@ -198,7 +212,7 @@ contains
     if (allocated(cx_full_lat  )) deallocate(cx_full_lat  )
     if (allocated(cy_full_lat  )) deallocate(cy_full_lat  )
     if (allocated(cx_half_lat  )) deallocate(cx_half_lat  )
-    if (allocated(cy_half_lat  )) deallocate(cy_half_lat  )
+    if (allocated(cy_half_lat  )) deallocate(cy_half_lat  ) 
     if (allocated(sx_full_lat  )) deallocate(sx_full_lat  )
     if (allocated(sy_full_lat  )) deallocate(sy_full_lat  )
     if (allocated(sx_half_lat  )) deallocate(sx_half_lat  )
@@ -1047,6 +1061,330 @@ contains
 
   end subroutine latlon_damp_lat
 
+  subroutine latlon_damp_lon_4th(block, dt, f)
+
+    type(block_type), intent(in), target :: block
+    real(8), intent(in) :: dt
+    real(r8), intent(inout) :: f(block%mesh%half_lon_lb:block%mesh%half_lon_ub, &
+                                 block%mesh%full_lat_lb:block%mesh%full_lat_ub, &
+                                 block%mesh%full_lev_lb:block%mesh%full_lev_ub)
+
+    type(mesh_type), pointer :: mesh
+    real(r8), pointer, dimension(:,:,:) :: lx, ly
+    integer i, j, k, ip, cyc
+
+    mesh => block%mesh
+
+    lx => block%latlon_damp_lon_lx
+    ly => block%latlon_damp_lon_ly
+    cycle_loop: do cyc = 1, polar_damp_cycles
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            lx(i,j,k) = (f(i-2,j,k) - 4 * f(i-1,j,k) + 6 * f(i,j,k) - 4 * f(i+1,j,k) + f(i+2,j,k)) / &
+                        (mesh%full_cos_lat(j) * mesh%dlon)**4
+            ip = i + mesh%num_half_lon / 2
+            if (ip > mesh%num_half_lon / 2) then
+              ip = ip - mesh%num_half_lon / 2
+            end if
+#ifdef V_POLE
+            if (j == mesh%full_lat_ibeg_no_pole) then
+              f(i,j-1,k) = f(ip,j,k)
+              f(i,j-2,k) = f(ip+1,j,k)
+            else if(j == mesh%full_lat_iend_no_pole) then
+              f(i,j+1,k) = f(ip,j,k)
+              f(i,j+2,k) = f(ip-1,j,k)
+            end if
+#else
+            if (j == mesh%full_lat_ibeg_no_pole) then
+              f(i,j-2,k) = f(ip,j,k)
+            else if(j == mesh%full_lat_iend_no_pole) then
+              f(i,j+2,k) = f(ip,j,k)
+            end if
+#endif
+            ly(i,j,k) = -mesh%full_sin_lat(j) / mesh%full_cos_lat(j)**3 *                                       &
+                         (f(i,j+1,k) - f(i,j-1,k)) / (2 * mesh%dlat(j)) -                                       &
+                         (1 + mesh%full_cos_lat(j)**2) / mesh%full_cos_lat(j)**2 *                              &
+                         (f(i,j-1,k) - 2 * f(i,j,k) + f(i,j+1,k)) / mesh%dlat(j)**2 -                           &
+                         2 * mesh%full_sin_lat(j) / mesh%full_cos_lat(j) *                                      &
+                         (-f(i,j-2,k) + 2 * f(i,j-1,k) - 2 * f(i,j+1,k) + f(i,j+2,k)) / (2 * mesh%dlat(j)**3) + &
+                         (f(i,j-2,k) - 4 * f(i,j-1,k) + 6 * f(i,j,k) - 4 * f(i,j+1,k) + f(i,j+2,k)) / mesh%dlat(j)**4
+          end do
+        end do   
+        ! Damp physical variable at last.
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            f(i,j,k) = f(i,j,k) - dt / polar_damp_cycles * (&
+                           lx(i,j,k) * cx_full_lat(j,k,4) + &
+                           ly(i,j,k) * cy_full_lat(j,k,4)   &
+                           ) 
+          end do
+        end do
+      end do
+      call fill_halo(block, f, full_lon=.false., full_lat=.true., full_lev=.true.)
+    end do cycle_loop
+
+  end subroutine latlon_damp_lon_4th
+
+  subroutine latlon_damp_lat_4th(block, dt, f)
+
+    type(block_type), intent(in), target :: block
+    real(8), intent(in) :: dt
+    real(r8), intent(inout) :: f(block%mesh%full_lon_lb:block%mesh%full_lon_ub, &
+                                 block%mesh%half_lat_lb:block%mesh%half_lat_ub, &
+                                 block%mesh%full_lev_lb:block%mesh%full_lev_ub)
+    type(mesh_type), pointer :: mesh
+    real(r8), pointer, dimension(:,:,:) :: lx, ly
+    integer i, j, k, ip, cyc
+    
+    mesh => block%mesh
+
+    lx => block%latlon_damp_lat_lx
+    ly => block%latlon_damp_lat_ly
+    cycle_loop: do cyc = 1, polar_damp_cycles
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            lx(i,j,k) = (f(i-2,j,k) - 4 * f(i-1,j,k) + 6 * f(i,j,k) - 4 * f(i+1,j,k) + f(i+2,j,k)) / &
+                       (mesh%half_cos_lat(j) * mesh%dlon)**4
+            ip = i + mesh%num_full_lon / 2
+            if (ip > mesh%num_full_lon / 2) then
+              ip = ip - mesh%num_full_lon / 2
+            end if
+#ifdef V_POLE
+            if(j == mesh%half_lat_ibeg_no_pole) then
+              f(i,j-2,k) = f(ip,j,k)
+            else if(j == mesh%half_lat_iend_no_pole) then
+              f(i,j+2,k) = f(ip,j,k)
+            end if
+#else
+            if(j == mesh%half_lat_ibeg_no_pole + 1) then
+              f(i,j-2,k) = f(ip,j-1,k)
+            else if (j == mesh%half_lat_ibeg_no_pole) then
+              f(i,j-1,k) = f(ip,j,k)
+              f(i,j-2,k) = f(ip,j+1,k)
+            else if(j == mesh%half_lat_iend_no_pole - 1) then
+              f(i,j+2,k) = f(ip,j+1,k)
+            else if (j == mesh%half_lat_iend_no_pole) then
+              f(i,j+1,k) = f(ip,j,k)
+              f(i,j+2,k) = f(ip,j-1,k)
+            end if
+#endif
+            ly(i,j,k) = -mesh%half_sin_lat(j) / mesh%half_cos_lat(j)**3 *                                       &
+                         (f(i,j+1,k) - f(i,j-1,k)) / (2 * mesh%dlat(j)) -                                       &
+                         (1 + mesh%half_cos_lat(j)**2) / mesh%half_cos_lat(j)**2 *                              &
+                         (f(i,j-1,k) - 2 * f(i,j,k) + f(i,j+1,k)) / mesh%dlat(j)**2 -                           &
+                         2 * mesh%half_sin_lat(j) / mesh%half_cos_lat(j) *                                      &
+                         (-f(i,j-2,k) + 2 * f(i,j-1,k) - 2 * f(i,j+1,k) + f(i,j+2,k)) / (2 * mesh%dlat(j)**3) + &
+                         (f(i,j-2,k) - 4 * f(i,j-1,k) + 6 * f(i,j,k) - 4 * f(i,j+1,k) + f(i,j+2,k)) / mesh%dlat(j)**4
+          end do
+        end do
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            f(i,j,k) = f(i,j,k) - dt / polar_damp_cycles * (&
+                           lx(i,j,k) * cx_half_lat(j,k,4) + &
+                           ly(i,j,k) * cy_half_lat(j,k,4)   &
+                           ) 
+          end do
+        end do
+      end do
+      call fill_halo(block, f, full_lon=.true., full_lat=.false., full_lev=.true.)
+    end do cycle_loop
+
+  end subroutine latlon_damp_lat_4th
+
+  subroutine latlon_damp_lon_limiter(block, dt, f)
+    ! Fourth diffusion with Xue(2000)'s method
+    type(block_type), intent(in), target :: block
+    real(8), intent(in) :: dt
+    real(r8), intent(inout) :: f(block%mesh%half_lon_lb:block%mesh%half_lon_ub, &
+                                 block%mesh%full_lat_lb:block%mesh%full_lat_ub, &
+                                 block%mesh%full_lev_lb:block%mesh%full_lev_ub)
+
+    type(mesh_type), pointer :: mesh
+    real(r8), pointer, dimension(:,:,:) :: gx, gy, dfdx, dfdy
+    integer i, j, k, ip, cyc
+
+    mesh => block%mesh
+
+    gx   => block%latlon_damp_lon_gx
+    gy   => block%latlon_damp_lon_gy
+    dfdx => block%latlon_damp_lon_dfdx
+    dfdy => block%latlon_damp_lon_dfdy
+    cycle_loop: do cyc = 1, polar_damp_cycles
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        ! Calculate damping flux and the gradient of forecast variable at interfaces.
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            gx  (i,j,k) = (-f(i-2,j,k) + 3.0 * f(i-1,j,k) - 3.0 * f(i,j,k) + f(i+1,j,k)) / (mesh%full_cos_lat(j) * mesh%dlon)**3
+            dfdx(i,j,k) =  f(i,j,k) - f(i-1,j,k)
+          end do
+        end do
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            ip = i + mesh%num_half_lon / 2
+            if (ip > mesh%num_half_lon / 2) then
+              ip = ip - mesh%num_half_lon / 2
+            end if
+#ifdef V_POLE
+            if (j == mesh%half_lat_ibeg_no_pole) then
+              f(i,j-2,k) = f(ip,j,k) 
+            else if (j == mesh%half_lat_iend_no_pole) then
+              f(i,j+1,k) = f(ip,j,k)
+            end if
+#else 
+            if (j == mesh%half_lat_ibeg_no_pole) then
+              f(i,j-1,k) = f(ip,j+1,k)
+            else if (j == mesh%half_lat_iend_no_pole) then
+              f(i,j+2,k) = f(ip,j,k)
+            end if
+#endif
+#ifdef V_POLE
+            gy  (i,j,k) = -(f(i,j,k) - f(i,j-1,k)) / mesh%dlat(j) / mesh%half_cos_lat(j)**2 -          &
+                           mesh%half_sin_lat(j) / mesh%half_cos_lat(j) *                               &
+                           (f(i,j+1,k) - f(i,j,k) - f(i,j-1,k) + f(i,j-2,k)) / (2 * mesh%dlat(j)**2) + &
+                           (-f(i,j-2,k) + 3 * f(i,j-1,k) - 3 * f(i,j,k) + f(i,j+1,k)) / mesh%dlat(j)**3 
+            dfdy(i,j,k) = f(i,j,k) - f(i,j-1,k)
+#else
+            gy  (i,j,k) = -(f(i,j+1,k) - f(i,j,k)) / mesh%dlat(j) / mesh%half_cos_lat(j)**2 -          &
+                           mesh%half_sin_lat(j) / mesh%half_cos_lat(j) *                               &
+                           (f(i,j+2,k) - f(i,j+1,k) - f(i,j,k) + f(i,j-1,k)) / (2 * mesh%dlat(j)**2) + &
+                          (-f(i,j-1,k) + 3 * f(i,j,k) - 3 * f(i,j+1,k) + f(i,j+2,k)) / mesh%dlat(j)**3
+            dfdy(i,j,k) = f(i,j+1,k) - f(i,j,k)
+#endif
+          end do
+        end do
+        ! Limit damping flux to avoid upgradient (Xue 2000).
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            gx(i,j,k) = gx(i,j,k) * max(0.0_r8, sign(1.0_r8, -gx(i,j,k) * dfdx(i,j,k)))
+          end do
+        end do
+        call fill_halo(block, gx, full_lon=.true., full_lat=.true., full_lev=.true.)
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            gy(i,j,k) = gy(i,j,k) * max(0.0_r8, sign(1.0_r8, -gy(i,j,k) * dfdy(i,j,k)))
+          end do
+        end do
+        call fill_halo(block, gy, full_lon=.false., full_lat=.false., full_lev=.true.)
+        ! Damp physical variable at last.
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+#ifdef V_POLE
+            f(i,j,k) = f(i,j,k) - dt / polar_damp_cycles * (                                      &
+              (gx(i+1,j,k) - gx(i,j,k)) / mesh%full_cos_lat(j) / mesh%dlon * cx_full_lat(j,k,4) + &
+              (gy(i,j+1,k) - gy(i,j,k)) / mesh%dlat(j) * cy_full_lat(j,k,4)                       &
+              )
+#else
+            f(i,j,k) = f(i,j,k) - dt / polar_damp_cycles * (                                      &
+              (gx(i+1,j,k) - gx(i,j,k)) / mesh%full_cos_lat(j) / mesh%dlon * cx_full_lat(j,k,4) + &
+              (gy(i,j,k) - gy(i,j-1,k)) / mesh%dlat(j) * cy_full_lat(j,k,4)                       &
+            ) 
+#endif
+          end do
+        end do
+      end do
+      call fill_halo(block, f, full_lon=.false., full_lat=.true., full_lev=.true.)
+    end do cycle_loop
+    
+  end subroutine latlon_damp_lon_limiter
+
+  subroutine latlon_damp_lat_limiter(block, dt, f)
+
+    type(block_type), intent(in), target :: block
+    real(8), intent(in) :: dt
+    real(r8), intent(inout) :: f(block%mesh%full_lon_lb:block%mesh%full_lon_ub, &
+                                 block%mesh%half_lat_lb:block%mesh%half_lat_ub, &
+                                 block%mesh%full_lev_lb:block%mesh%full_lev_ub)
+
+    type(mesh_type), pointer :: mesh
+    real(r8), pointer, dimension(:,:,:) :: gx, gy, dfdx, dfdy
+    integer i, j, k, cyc, ip
+
+    mesh => block%mesh
+
+    gx   => block%latlon_damp_lat_gx
+    gy   => block%latlon_damp_lat_gy
+    dfdx => block%latlon_damp_lat_dfdx
+    dfdy => block%latlon_damp_lat_dfdy
+    cycle_loop: do cyc = 1, polar_damp_cycles
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        ! Calculate damping flux and the gradient of forecast variable at interfaces.
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            gx  (i,j,k) = (-f(i-1,j,k) + 3 * f(i,j,k) - 3 * f(i+1,j,k) + f(i+2,j,k)) / (mesh%half_cos_lat(j) * mesh%dlon)**3
+            dfdx(i,j,k) = f(i+1,j,k) - f(i,j,k)
+          end do
+        end do
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            ip = i + mesh%num_full_lon / 2
+            if (ip > mesh%num_full_lon / 2) then
+              ip = ip - mesh%num_full_lon / 2
+            end if
+#ifdef V_POLE
+            if (j == mesh%full_lat_ibeg_no_pole) then
+              f(i,j-1,k) = f(ip,j+1,k)
+            else if (j == mesh%full_lat_iend_no_pole) then
+              f(i,j+2,k) = f(ip,j,k)
+            end if
+#else
+            if (j == mesh%full_lat_ibeg_no_pole) then
+              f(i,j-2,k) = f(ip,j-1,k)
+            else if (j == mesh%full_lat_iend_no_pole) then
+              f(i,j+1,k) = f(ip,j,k)
+            end if
+#endif
+#ifdef V_POLE
+            gy  (i,j,k) = -(f(i,j+1,k) - f(i,j,k)) / mesh%full_cos_lat(j)**2 / mesh%dlat(j) -          &
+                          mesh%full_sin_lat(j) / mesh%full_cos_lat(j) *                                &
+                          (f(i,j+2,k) - f(i,j+1,k) - f(i,j,k) + f(i,j-1,k)) / (2 * mesh%dlat(j)**2) +  &
+                          (-f(i,j-1,k) + 3 * f(i,j,k) - 3 * f(i,j+1,k) + f(i,j+2,k)) / mesh%dlat(j)**3 
+            dfdy(i,j,k) = f(i,j+1,k) - f(i,j,k)
+#else
+            gy  (i,j,k) = -(f(i,j,k) - f(i,j-1,k)) / mesh%full_cos_lat(j)**2 / mesh%dlat(j) -          &
+                           mesh%full_sin_lat(j) / mesh%full_cos_lat(j) *                               &
+                           (f(i,j+1,k) - f(i,j,k) - f(i,j-1,k) + f(i,j-2,k)) / (2 * mesh%dlat(j)**2) + &
+                          (-f(i,j-2,k) + 3 * f(i,j-1,k) - 3 * f(i,j,k) + f(i,j+1,k)) / mesh%dlat(j)**3
+            dfdy(i,j,k) = f(i,j,k) - f(i,j-1,k)
+#endif
+          end do
+        end do
+        ! Limit damping flux to avoid upgradient (Xue 2000).
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            gx(i,j,k) = gx(i,j,k) * max(0.0_r8, sign(1.0_r8, -gx(i,j,k) * dfdx(i,j,k)))
+          end do
+        end do
+        call fill_halo(block, gx, full_lon=.false., full_lat=.false., full_lev=.true.)
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            gy(i,j,k) = gy(i,j,k) * max(0.0_r8, sign(1.0_r8, -gy(i,j,k) * dfdy(i,j,k)))
+          end do
+        end do
+        call fill_halo(block, gy, full_lon=.true., full_lat=.true., full_lev=.true.)
+        ! Damp physical variable at last.
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+#ifdef V_POLE
+            f(i,j,k) = f(i,j,k) - dt / polar_damp_cycles * (                                      &
+              (gx(i,j,k) - gx(i-1,j,k)) / mesh%half_cos_lat(j) / mesh%dlon * cx_half_lat(j,k,4) + &
+              (gy(i,j,k) - gy(i,j-1,k)) / mesh%dlat(j) * cy_half_lat(j,k,4)                       &
+              )
+#else
+            f(i,j,k) = f(i,j,k) - dt / polar_damp_cycles * (                                      &
+              (gx(i,j,k) - gx(i-1,j,k)) / mesh%half_cos_lat(j) / mesh%dlon * cx_half_lat(j,k,4) + &
+              (gy(i,j+1,k) - gy(i,j,k)) / mesh%dlat(j) * cy_half_lat(j,k,4)                       &
+            ) 
+#endif
+          end do
+        end do
+      end do
+      call fill_halo(block, f, full_lon=.true., full_lat=.false., full_lev=.true.)
+    end do cycle_loop
+
+  end subroutine latlon_damp_lat_limiter
+
   subroutine latlon_damp_cell(block, dt, f)
 
     type(block_type), intent(in), target :: block
@@ -1301,13 +1639,144 @@ contains
 
   end subroutine div_damp
 
+  subroutine shapiro_filter_lon(block, order, f)
+    !2nd meridional filter to u wind
+    type(block_type), intent(in), target :: block
+    integer, intent(in) :: order
+    real(r8), intent(inout) :: f(block%mesh%half_lon_lb:block%mesh%half_lon_ub, &
+                                 block%mesh%full_lat_lb:block%mesh%full_lat_ub, &
+                                 block%mesh%full_lev_lb:block%mesh%full_lev_ub)
+
+    type(mesh_type), pointer :: mesh
+    integer i, j, k, ip
+
+    mesh => block%mesh
+    if (order == 2) then
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            ip = i + mesh%num_half_lon / 2
+            if (ip > mesh%num_half_lon / 2) then
+              ip = ip - mesh%num_half_lon / 2
+            end if
+            if (j == mesh%full_lat_ibeg_no_pole) then
+              f(i,j-2,k) = -f(ip,j,k)
+            else if(j == mesh%full_lat_iend_no_pole) then
+              f(i,j+2,k) = -f(ip,j,k)
+            end if
+            f(i,j,k) = (10.0 * f(i,j,k) + 4.0 * (f(i,j-1,k) + f(i,j+1,k)) - f(i,j-2,k) - f(i,j+2,k)) / 16.0_r8
+          end do
+        end do
+      end do  
+    else if(order == 3) then
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            ip = i + mesh%num_half_lon / 2
+            if (ip > mesh%num_half_lon / 2) then
+              ip = ip - mesh%num_half_lon / 2
+            end if
+            if (j == mesh%full_lat_ibeg_no_pole) then
+              f(i,j-2,k) = -f(ip,j,k)
+              f(i,j-3,k) = -f(ip,j+1,k)
+            else if(j== mesh%full_lat_ibeg_no_pole + 1) then
+              f(i,j-3,k) = -f(ip,j-1,k)
+            else if(j == mesh%full_lat_iend_no_pole) then
+              f(i,j+2,k) = -f(ip,j,k)
+              f(i,j+3,k) = -f(ip,j-1,k)
+            else if(j == mesh%full_lat_iend_no_pole - 1) then
+              f(i,j+3,k) = -f(ip,j+1,k)
+            end if
+            f(i,j,k) = (44.0 * f(i,j,k) + 15.0 * (f(i,j-1,k) + f(i,j+1,k)) - &
+                      6.0 * (f(i,j-2,k) - f(i,j+2,k)) + f(i,j-3,k) + f(i,j+3,k)) / 64.0_r8
+
+          end do
+        end do
+      end do     
+    end if
+    call fill_halo(block, f, full_lon=.false., full_lat=.true., full_lev=.true.)
+
+  end subroutine shapiro_filter_lon
+
+  subroutine shapiro_filter_lat(block, order, f)
+    !2nd meridional filter to v wind
+    type(block_type), intent(in), target :: block
+    integer, intent(in) :: order
+    real(r8), intent(inout) :: f(block%mesh%full_lon_lb:block%mesh%full_lon_ub, &
+                                 block%mesh%half_lat_lb:block%mesh%half_lat_ub, &
+                                 block%mesh%full_lev_lb:block%mesh%full_lev_ub)
+
+    type(mesh_type), pointer :: mesh
+    integer i, j, k, ip
+
+    mesh => block%mesh
+    if (order == 2) then
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            ip = i + mesh%num_full_lon / 2
+            if (ip > mesh%num_full_lon / 2) then
+              ip = ip - mesh%num_full_lon / 2
+            end if
+            if(j == mesh%half_lat_ibeg_no_pole + 1) then
+              f(i,j-2,k) = -f(ip,j-1,k)
+            else if (j == mesh%half_lat_ibeg_no_pole) then
+              f(i,j-1,k) = -f(ip,j,k)
+              f(i,j-2,k) = -f(ip,j+1,k)
+            else if(j == mesh%half_lat_iend_no_pole - 1) then
+              f(i,j+2,k) = -f(ip,j+1,k)
+            else if (j == mesh%half_lat_iend_no_pole) then
+              f(i,j+1,k) = -f(ip,j,k)
+              f(i,j+2,k) = -f(ip,j-1,k)
+            end if
+            f(i,j,k) = (10.0 * f(i,j,k) + 4.0 * (f(i,j-1,k) + f(i,j+1,k)) - f(i,j-2,k) - f(i,j+2,k)) / 16.0_r8
+          end do
+        end do
+      end do
+    else if (order == 3) then
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            ip = i + mesh%num_full_lon / 2
+            if (ip > mesh%num_full_lon / 2) then
+              ip = ip - mesh%num_full_lon / 2
+            end if
+            if(j == mesh%half_lat_ibeg_no_pole) then
+              f(i,j-1,k) = f(ip,j,k)
+              f(i,j-2,k) = f(ip,j+1,k)
+              f(i,j-3,k) = f(ip,j+2,k)
+            else if(j == mesh%half_lat_ibeg_no_pole + 1) then
+              f(i,j-2,k) = f(ip,j-1,k)
+              f(i,j-3,k) = f(ip,j,k)
+            else if (j == mesh%half_lat_ibeg_no_pole + 2) then
+              f(i,j-3,k) = f(ip,j-2,k)
+            else if(j == mesh%half_lat_iend_no_pole) then
+              f(i,j+1,k) = f(ip,j,k)
+              f(i,j+2,k) = f(ip,j-1,k)
+              f(i,j+3,k) = f(ip,j-2,k)
+            else if(j == mesh%half_lat_iend_no_pole - 1) then
+              f(i,j+2,k) = f(ip,j+1,k)
+              f(i,j+3,k) = f(ip,j,k)
+            else if (j == mesh%half_lat_iend_no_pole - 2) then
+              f(i,j+3,k) = f(ip,j+2,k)
+            end if
+            f(i,j,k) = (44.0 * f(i,j,k) + 15.0 * (f(i,j-1,k) + f(i,j+1,k)) - &
+                       6.0 * (f(i,j-2,k) + f(i,j+2,k)) + f(i,j-3,k) + f(i,j+3,k)) / 64.0_r8
+          end do
+        end do
+      end do    
+    end if 
+    call fill_halo(block, f, full_lon=.true., full_lat=.false., full_lev=.true.)
+
+  end subroutine shapiro_filter_lat
+
   subroutine shapiro_smooth(block, state)
 
     type(block_type), intent(in) :: block
     type(state_type), intent(inout) :: state
 
     type(mesh_type), pointer :: mesh
-    integer i, j, k
+    integer i, j, k, ip
 
     mesh => state%mesh
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
@@ -1319,6 +1788,30 @@ contains
              4 * state%u(i+1,j,k) + &
             -1 * state%u(i-2,j,k) + &
             -1 * state%u(i+2,j,k)   &
+          ) / 16.0_r8
+        end do
+      end do
+    end do
+    call fill_halo(block, state%u, full_lon=.false., full_lat=.true., full_lev=.true.)
+    
+    do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+      do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+        do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+          ip = i + mesh%num_half_lon / 2
+          if (ip > mesh%num_half_lon / 2) then
+            ip = ip - mesh%num_half_lon / 2
+          end if
+          if (j == mesh%full_lat_ibeg_no_pole) then
+            state%u(i,j-2,k) = state%u(i,j,k)
+          else if (j == mesh%full_lat_iend_no_pole) then
+            state%u(i,j+2,k) = state%u(i,j,k)
+          end if
+          state%u(i,j,k) = state%u(i,j,k) + sx_full_lat(j,k) * ( &
+            -6 * state%u(i,j  ,k) + &
+             4 * state%u(i,j-1,k) + &
+             4 * state%u(i,j+1,k) + &
+            -1 * state%u(i,j-2,k) + &
+            -1 * state%u(i,j+2,k)   &
           ) / 16.0_r8
         end do
       end do
@@ -1339,22 +1832,167 @@ contains
       end do
     end do
     call fill_halo(block, state%v, full_lon=.true., full_lat=.false., full_lev=.true.)
+    
+    do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+      do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+        do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+          ip = i + mesh%num_full_lon / 2
+          if (ip > mesh%num_full_lon / 2) then
+            ip = ip - mesh%num_full_lon / 2
+          end if
+          if (j == mesh%half_lat_ibeg_no_pole + 1) then
+            state%v(i,j-2,k) = state%v(ip,j-1,k)
+          else if (j == mesh%half_lat_ibeg_no_pole) then
+            state%v(i,j-1,k) = state%v(ip,j,k)
+            state%v(i,j-2,k) = state%v(ip,j+1,k)
+          else if (j == mesh%half_lat_iend_no_pole - 1) then
+            state%v(i,j+2,k) = state%v(ip,j+1,k)
+          else if (j == mesh%half_lat_iend_no_pole) then
+            state%v(i,j+1,k) = state%v(ip,j,k)
+            state%v(i,j+2,k) = state%v(ip,j-1,k)
+          end if
+          state%v(i,j,k) = state%v(i,j,k) + sx_half_lat(j,k) * ( &
+            -6 * state%v(i,j  ,k) + &
+             4 * state%v(i,j-1,k) + &
+             4 * state%v(i,j+1,k) + &
+            -1 * state%v(i,j-2,k) + &
+            -1 * state%v(i,j+2,k)   &
+          ) / 16.0_r8
+        end do
+      end do
+    end do
+    call fill_halo(block, state%v, full_lon=.true., full_lat=.false., full_lev=.true.)
+    
+    if (baroclinic .and. hydrostatic) then
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            state%pt(i,j,k) = state%pt(i,j,k) + sx_full_lat(j,k) * ( &
+              -6 * state%pt(i  ,j,k) + &
+               4 * state%pt(i-1,j,k) + &
+               4 * state%pt(i+1,j,k) + &
+              -1 * state%pt(i-2,j,k) + &
+              -1 * state%pt(i+2,j,k)   &
+            ) / 16.0_r8
+          end do
+        end do
+      end do
+      call fill_halo(block, state%pt, full_lon=.true., full_lat=.true., full_lev=.true.)
+      
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+            ip = i + mesh%num_half_lon / 2
+            if (ip > mesh%num_half_lon / 2) then
+              ip = ip - mesh%num_half_lon / 2
+            end if
+            if (j == mesh%full_lat_ibeg_no_pole) then
+              state%pt(i,j-2,k) = state%pt(i,j,k)
+            else if (j == mesh%full_lat_iend_no_pole) then
+              state%pt(i,j+2,k) = state%pt(i,j,k)
+            end if
+            state%pt(i,j,k) = state%pt(i,j,k) + sx_full_lat(j,k) * ( &
+              -6 * state%pt(i,j  ,k) + &
+               4 * state%pt(i,j-1,k) + &
+               4 * state%pt(i,j+1,k) + &
+              -1 * state%pt(i,j-2,k) + &
+              -1 * state%pt(i,j+2,k)   &
+            ) / 16.0_r8
+          end do
+        end do
+      end do
+      call fill_halo(block, state%pt, full_lon=.true., full_lat=.true., full_lev=.true.)
+    end if
+    
+  end subroutine shapiro_smooth
+  
+  subroutine shapiro_smooth_meridional(block, state)
+
+    type(block_type), intent(in) :: block
+    type(state_type), intent(inout) :: state
+
+    type(mesh_type), pointer :: mesh
+    integer i, j, k, ip
+
+    mesh => state%mesh
+    do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+      do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+        do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+          ip = i + mesh%num_half_lon / 2
+          if (ip > mesh%num_half_lon / 2) then
+            ip = ip - mesh%num_half_lon / 2
+          end if
+          if (j == mesh%full_lat_ibeg_no_pole) then
+            state%u(i,j-2,k) = state%u(i,j,k)
+          else if (j == mesh%full_lat_iend_no_pole) then
+            state%u(i,j+2,k) = state%u(i,j,k)
+          end if
+          state%u(i,j,k) = state%u(i,j,k) + sx_full_lat(j,k) * ( &
+            -6 * state%u(i,j  ,k) + &
+             4 * state%u(i,j-1,k) + &
+             4 * state%u(i,j+1,k) + &
+            -1 * state%u(i,j-2,k) + &
+            -1 * state%u(i,j+2,k)   &
+          ) / 16.0_r8
+        end do
+      end do
+    end do
+    call fill_halo(block, state%u, full_lon=.false., full_lat=.true., full_lev=.true.)
+
+    do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+      do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+        do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+          ip = i + mesh%num_full_lon / 2
+          if (ip > mesh%num_full_lon / 2) then
+            ip = ip - mesh%num_full_lon / 2
+          end if
+          if (j == mesh%half_lat_ibeg_no_pole + 1) then
+            state%v(i,j-2,k) = state%v(ip,j-1,k)
+          else if (j == mesh%half_lat_ibeg_no_pole) then
+            state%v(i,j-1,k) = state%v(ip,j,k)
+            state%v(i,j-2,k) = state%v(ip,j+1,k)
+          else if (j == mesh%half_lat_iend_no_pole - 1) then
+            state%v(i,j+2,k) = state%v(ip,j+1,k)
+          else if (j == mesh%half_lat_iend_no_pole) then
+            state%v(i,j+1,k) = state%v(ip,j,k)
+            state%v(i,j+2,k) = state%v(ip,j-1,k)
+          end if
+          state%v(i,j,k) = state%v(i,j,k) + sx_half_lat(j,k) * ( &
+            -6 * state%v(i,j  ,k) + &
+             4 * state%v(i,j-1,k) + &
+             4 * state%v(i,j+1,k) + &
+            -1 * state%v(i,j-2,k) + &
+            -1 * state%v(i,j+2,k)   &
+          ) / 16.0_r8
+        end do
+      end do
+    end do
+    call fill_halo(block, state%v, full_lon=.true., full_lat=.false., full_lev=.true.)
 
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
       do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+          ip = i + mesh%num_half_lon / 2
+          if (ip > mesh%num_half_lon / 2) then
+            ip = ip - mesh%num_half_lon / 2
+          end if
+          if (j == mesh%full_lat_ibeg_no_pole) then
+            state%pt(i,j-2,k) = state%pt(i,j,k)
+          else if (j == mesh%full_lat_iend_no_pole) then
+            state%pt(i,j+2,k) = state%pt(i,j,k)
+          end if
           state%pt(i,j,k) = state%pt(i,j,k) + sx_full_lat(j,k) * ( &
-            -6 * state%pt(i  ,j,k) + &
-             4 * state%pt(i-1,j,k) + &
-             4 * state%pt(i+1,j,k) + &
-            -1 * state%pt(i-2,j,k) + &
-            -1 * state%pt(i+2,j,k)   &
+            -6 * state%pt(i,j  ,k) + &
+             4 * state%pt(i,j-1,k) + &
+             4 * state%pt(i,j+1,k) + &
+            -1 * state%pt(i,j-2,k) + &
+            -1 * state%pt(i,j+2,k)   &
           ) / 16.0_r8
         end do
       end do
     end do
     call fill_halo(block, state%pt, full_lon=.true., full_lat=.true., full_lev=.true.)
 
-  end subroutine shapiro_smooth
+    end subroutine shapiro_smooth_meridional
 
 end module damp_mod
