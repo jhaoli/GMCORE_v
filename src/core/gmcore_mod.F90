@@ -138,7 +138,7 @@ contains
       call time_integrate(dt_in_seconds, proc%blocks)
       if (proc%id == 0 .and. time_is_alerted('print')) call log_print_diag(curr_time%isoformat())  
       call time_advance(dt_in_seconds)
-      ! call operators_prepare(proc%blocks, old, dt_in_seconds)
+      call operators_prepare(proc%blocks, old, dt_in_seconds)
       call diagnose(proc%blocks, old)
       call output(proc%blocks, old)
     end do
@@ -561,7 +561,7 @@ contains
       if (use_div_damp) then
         call div_damp(blocks(iblk), blocks(iblk)%state(old), blocks(iblk)%state(new), dt)
       end if
-      if (use_polar_damp .and. time_is_alerted('damp')) then
+      if (use_polar_damp) then ! .and. time_is_alerted('damp')) then
         select case (damp_scheme)
         case ('simple')
           call latlon_damp_lon(blocks(iblk), dt, blocks(iblk)%state(new)%u)
@@ -572,6 +572,7 @@ contains
         case ('limiter')
           call latlon_damp_lon_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%u)
           call latlon_damp_lat_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%v)
+          call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%gz)
         case ('shapiro_filter')
 !          call shapiro_filter_lon(blocks(iblk), shapiro_filter_order, blocks(iblk)%state(new)%u)
 !          call shapiro_filter_lat(blocks(iblk), shapiro_filter_order, blocks(iblk)%state(new)%v)
@@ -580,6 +581,9 @@ contains
         case default
           call log_error('Invalid damp scheme ' // trim(damp_scheme) // '!')
         end select
+      end if
+      if (use_div_damp .or. use_polar_damp) then 
+        call operators_prepare(blocks(iblk), blocks(iblk)%state(new), dt, all_pass)
       end if
     end do
 
