@@ -31,7 +31,7 @@ module namelist_mod
   integer :: ke_scheme = 1
   real(r8) :: ke_cell_wgt = 3.0_r8 / 8.0_r8
 
-  integer :: pv_scheme = 2
+  integer :: pv_scheme = 3
   logical :: pv_pole_stokes = .true.
 
   integer :: coriolis_scheme = 1
@@ -46,7 +46,6 @@ module namelist_mod
   integer :: reduce_factors(100) = 0
   integer :: color_proc_lat_reduce(100) = 0
   integer :: num_proc_lon_reduce(100) = 0
-  integer :: zonal_damp_orders(100) = 0
 
   logical :: use_polar_damp = .true.
   character(30) :: damp_scheme = 'direct'
@@ -104,7 +103,6 @@ module namelist_mod
     reduce_factors            , &
     color_proc_lat_reduce     , &
     num_proc_lon_reduce       , &
-    zonal_damp_orders         , &
     use_polar_damp            , &
     damp_scheme               , &
     polar_damp_order          , &

@@ -56,7 +56,7 @@ contains
 
     call log_init()
     call global_mesh%init_global(num_lon, num_lat, num_lev, lon_halo_width=max(2, maxval(reduce_factors) - 1), lat_halo_width=2)
-    call debug_check_areas()
+    !call debug_check_areas()
     call process_init()
     call vert_coord_init(num_lev, namelist_path)
     call process_create_blocks()
@@ -136,7 +136,7 @@ contains
 
     do while (.not. time_is_finished())
       call time_integrate(dt_in_seconds, proc%blocks)
-      if (proc%id == 0 .and. time_is_alerted('print')) call log_print_diag(curr_time%isoformat())  
+      if (is_root_proc() .and. time_is_alerted('print')) call log_print_diag(curr_time%isoformat())
       call time_advance(dt_in_seconds)
       call operators_prepare(proc%blocks, old, dt_in_seconds)
       call diagnose(proc%blocks, old)
@@ -169,16 +169,18 @@ contains
         if (is_root_proc()) call log_notice('Time cost ' // to_string(time2 - time1, 5) // ' seconds.')
         time1 = time2
       end if
-      ! Interpolate onto isobaric layers.
-      do iblk = 1, size(blocks)
-        state => blocks(iblk)%state(itime)
-        call interp_lon_edge_to_isobaric_level(state%mesh, state%ph, state%u, 85000.0_r8, state%u850, logp=.true.)
-        call interp_lon_edge_to_isobaric_level(state%mesh, state%ph, state%u, 70000.0_r8, state%u700, logp=.true.)
-        call interp_lat_edge_to_isobaric_level(state%mesh, state%ph, state%v, 85000.0_r8, state%v850, logp=.true.)
-        call interp_lat_edge_to_isobaric_level(state%mesh, state%ph, state%v, 70000.0_r8, state%v700, logp=.true.)
-        call interp_cell_to_isobaric_level(state%mesh, state%ph, state%t, 85000.0_r8, state%t850, logp=.true.)
-        call interp_cell_to_isobaric_level(state%mesh, state%ph, state%t, 70000.0_r8, state%t700, logp=.true.)
-      end do
+      if (baroclinic) then
+        ! Interpolate onto isobaric layers.
+        do iblk = 1, size(blocks)
+          state => blocks(iblk)%state(itime)
+          call interp_lon_edge_to_isobaric_level(state%mesh, state%ph, state%u, 85000.0_r8, state%u850, logp=.true.)
+          call interp_lon_edge_to_isobaric_level(state%mesh, state%ph, state%u, 70000.0_r8, state%u700, logp=.true.)
+          call interp_lat_edge_to_isobaric_level(state%mesh, state%ph, state%v, 85000.0_r8, state%v850, logp=.true.)
+          call interp_lat_edge_to_isobaric_level(state%mesh, state%ph, state%v, 70000.0_r8, state%v700, logp=.true.)
+          call interp_cell_to_isobaric_level(state%mesh, state%ph, state%t, 85000.0_r8, state%t850, logp=.true.)
+          call interp_cell_to_isobaric_level(state%mesh, state%ph, state%t, 70000.0_r8, state%t700, logp=.true.)
+        end do
+      end if
       call history_write_state(blocks, itime)
       call history_write_debug(blocks, itime)
     end if
@@ -297,10 +299,6 @@ contains
 
     type(mesh_type), pointer :: mesh
     integer i, j, k
-
-    call state%async(async_gz)%wait()
-    call state%async(async_u )%wait()
-    call state%async(async_v )%wait()
 
     mesh => state%mesh
 
@@ -559,30 +557,15 @@ contains
       call splitter(dt, blocks(iblk))
 
       if (use_div_damp) then
-        call div_damp(blocks(iblk), blocks(iblk)%state(old), blocks(iblk)%state(new), dt)
+        call div_damp(blocks(iblk), dt, blocks(iblk)%state(old), blocks(iblk)%state(new))
       end if
-      if (use_polar_damp) then ! .and. time_is_alerted('damp')) then
-        select case (damp_scheme)
-        case ('simple')
-          call latlon_damp_lon(blocks(iblk), dt, blocks(iblk)%state(new)%u)
-          call latlon_damp_lat(blocks(iblk), dt, blocks(iblk)%state(new)%v)
-        case ('direct')       
-          call latlon_damp_lon_4th(blocks(iblk), dt, blocks(iblk)%state(new)%u)
-          call latlon_damp_lat_4th(blocks(iblk), dt, blocks(iblk)%state(new)%v)
-        case ('limiter')
-          call latlon_damp_lon_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%u)
-          call latlon_damp_lat_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%v)
-          call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%gz)
-        case ('shapiro_filter')
-!          call shapiro_filter_lon(blocks(iblk), shapiro_filter_order, blocks(iblk)%state(new)%u)
-!          call shapiro_filter_lat(blocks(iblk), shapiro_filter_order, blocks(iblk)%state(new)%v)
-          call shapiro_smooth(blocks(iblk), blocks(iblk)%state(new))
-          ! call shapiro_smooth_meridional(blocks(iblk), blocks(iblk)%state(new))
-        case default
-          call log_error('Invalid damp scheme ' // trim(damp_scheme) // '!')
-        end select
+      if (use_polar_damp) then
+!        call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
+        call latlon_damp_lon_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%u)
+        call latlon_damp_lat_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%v)
+        call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%gz)
       end if
-      if (use_div_damp .or. use_polar_damp) then 
+      if (use_div_damp .or. use_polar_damp) then
         call operators_prepare(blocks(iblk), blocks(iblk)%state(new), dt, all_pass)
       end if
     end do
