@@ -563,7 +563,11 @@ contains
 !        call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
         call latlon_damp_lon_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%u)
         call latlon_damp_lat_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%v)
-        call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%gz)
+        if (baroclinic) then
+          call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%pt)
+        else
+          call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%gz)
+        end if
       end if
       if (use_div_damp .or. use_polar_damp) then
         call operators_prepare(blocks(iblk), blocks(iblk)%state(new), dt, all_pass)
