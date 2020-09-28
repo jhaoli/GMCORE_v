@@ -108,24 +108,6 @@ contains
 
     call time_add_alert('print', seconds=seconds)
 
-    time_value = split_string(damp_interval, ' ', 1)
-    time_units = split_string(damp_interval, ' ', 2)
-    read(time_value, *) seconds
-    select case (time_units)
-    case ('days')
-      seconds = seconds * 86400
-    case ('hours')
-      seconds = seconds * 3600
-    case ('minutes')
-      seconds = seconds * 60
-    case ('seconds')
-      seconds = seconds
-    case default
-      call log_error('Invalid damp interval ' // trim(damp_interval) // '!')
-    end select
-
-    call time_add_alert('damp', seconds=seconds)
-
   end subroutine gmcore_init
 
   subroutine gmcore_run()
@@ -560,14 +542,16 @@ contains
         call div_damp(blocks(iblk), dt, blocks(iblk)%state(old), blocks(iblk)%state(new))
       end if
       if (use_polar_damp) then
-!        call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
-        call latlon_damp_lon_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%u)
-        call latlon_damp_lat_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%v)
-        if (baroclinic) then
-          call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%pt)
-        else
-          call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%gz)
-        end if
+        select case (damp_scheme)
+        case ('polar_damp')
+          call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
+        case ('limiter')
+          call latlon_damp_lon_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%u)
+          call latlon_damp_lat_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%v)
+          if (baroclinic) then
+            call latlon_damp_cell_limiter(blocks(iblk), dt, blocks(iblk)%state(new)%pt)
+          end if
+        end select
       end if
       if (use_div_damp .or. use_polar_damp) then
         call operators_prepare(blocks(iblk), blocks(iblk)%state(new), dt, all_pass)
