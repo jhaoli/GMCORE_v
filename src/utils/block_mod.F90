@@ -47,22 +47,10 @@ module block_mod
     type(reduced_tend_type), allocatable :: reduced_tend(:)
     type(halo_type), allocatable :: halo(:)
     ! Work arrays
-    real(r8), allocatable :: latlon_damp_lon_lx   (:,:,:)
-    real(r8), allocatable :: latlon_damp_lon_ly   (:,:,:)
-    real(r8), allocatable :: latlon_damp_lon_gx   (:,:,:)
-    real(r8), allocatable :: latlon_damp_lon_dfdx (:,:,:)
-    real(r8), allocatable :: latlon_damp_lon_gy   (:,:,:)
-    real(r8), allocatable :: latlon_damp_lon_dfdy (:,:,:)
-    real(r8), allocatable :: latlon_damp_lat_lx   (:,:,:)
-    real(r8), allocatable :: latlon_damp_lat_ly   (:,:,:)    
-    real(r8), allocatable :: latlon_damp_lat_gx   (:,:,:)
-    real(r8), allocatable :: latlon_damp_lat_dfdx (:,:,:)
-    real(r8), allocatable :: latlon_damp_lat_gy   (:,:,:)
-    real(r8), allocatable :: latlon_damp_lat_dfdy (:,:,:)
-    real(r8), allocatable :: latlon_damp_cell_gx  (:,:,:)
-    real(r8), allocatable :: latlon_damp_cell_dfdx(:,:,:)
-    real(r8), allocatable :: latlon_damp_cell_gy  (:,:,:)
-    real(r8), allocatable :: latlon_damp_cell_dfdy(:,:,:)
+    real(r8), allocatable :: meridional_damp_lon_gy   (:,:,:)
+    real(r8), allocatable :: meridional_damp_lat_gy   (:,:,:)
+    real(r8), allocatable :: meridional_damp_cell_gy  (:,:,:)
+    real(r8), allocatable :: meridional_damp_vtx_gy   (:,:,:)
   contains
     procedure :: init => block_init
     final :: block_final
@@ -107,22 +95,10 @@ contains
     end if
 
     ! Allocate working arrays.
-    call allocate_array(this%mesh, this%latlon_damp_lon_lx   , half_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lon_ly   , half_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lon_gx   , full_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lon_dfdx , full_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lon_gy   , half_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lon_dfdy , half_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lat_lx   , full_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lat_ly   , full_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lat_gx   , half_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lat_dfdx , half_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lat_gy   , full_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_lat_dfdy , full_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_cell_gx  , half_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_cell_dfdx, half_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_cell_gy  , full_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%latlon_damp_cell_dfdy, full_lon=.true., half_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_lon_gy   , half_lon=.true., half_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_lat_gy   , full_lon=.true., full_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_cell_gy  , full_lon=.true., half_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_vtx_gy   , half_lon=.true., full_lat=.true., full_lev=.true.)
 
   end subroutine block_init
 
@@ -138,22 +114,10 @@ contains
     if (allocated(this%reduced_static)) deallocate(this%reduced_static)
     if (allocated(this%reduced_tend  )) deallocate(this%reduced_tend  )
 
-    if (allocated(this%latlon_damp_cell_gx  )) deallocate(this%latlon_damp_cell_gx  )
-    if (allocated(this%latlon_damp_cell_gy  )) deallocate(this%latlon_damp_cell_gy  )
-    if (allocated(this%latlon_damp_cell_dfdx)) deallocate(this%latlon_damp_cell_dfdx)
-    if (allocated(this%latlon_damp_cell_dfdy)) deallocate(this%latlon_damp_cell_dfdy)
-    if (allocated(this%latlon_damp_lon_lx   )) deallocate(this%latlon_damp_lon_lx   )
-    if (allocated(this%latlon_damp_lon_ly   )) deallocate(this%latlon_damp_lon_ly   )
-    if (allocated(this%latlon_damp_lon_gx   )) deallocate(this%latlon_damp_lon_gx   )
-    if (allocated(this%latlon_damp_lon_gy   )) deallocate(this%latlon_damp_lon_gy   )
-    if (allocated(this%latlon_damp_lon_dfdx )) deallocate(this%latlon_damp_lon_dfdx )
-    if (allocated(this%latlon_damp_lon_dfdy )) deallocate(this%latlon_damp_lon_dfdy )
-    if (allocated(this%latlon_damp_lat_lx   )) deallocate(this%latlon_damp_lat_lx   )
-    if (allocated(this%latlon_damp_lat_ly   )) deallocate(this%latlon_damp_lat_ly   )
-    if (allocated(this%latlon_damp_lat_gx   )) deallocate(this%latlon_damp_lat_gx   )
-    if (allocated(this%latlon_damp_lat_gy   )) deallocate(this%latlon_damp_lat_gy   )
-    if (allocated(this%latlon_damp_lat_dfdx )) deallocate(this%latlon_damp_lat_dfdx )
-    if (allocated(this%latlon_damp_lat_dfdy )) deallocate(this%latlon_damp_lat_dfdy )
+    if (allocated(this%meridional_damp_lon_gy   )) deallocate(this%meridional_damp_lon_gy   )
+    if (allocated(this%meridional_damp_lat_gy   )) deallocate(this%meridional_damp_lat_gy   )
+    if (allocated(this%meridional_damp_cell_gy  )) deallocate(this%meridional_damp_cell_gy  )
+    if (allocated(this%meridional_damp_vtx_gy   )) deallocate(this%meridional_damp_vtx_gy   )
 
   end subroutine block_final
 
