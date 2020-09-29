@@ -51,6 +51,11 @@ module block_mod
     real(r8), allocatable :: meridional_damp_lat_gy   (:,:,:)
     real(r8), allocatable :: meridional_damp_cell_gy  (:,:,:)
     real(r8), allocatable :: meridional_damp_vtx_gy   (:,:,:)
+    real(r8), allocatable :: meridional_damp_lon_ly   (:,:,:)
+    real(r8), allocatable :: meridional_damp_lat_ly   (:,:,:)
+    real(r8), allocatable :: meridional_damp_cell_ly  (:,:,:)
+    real(r8), allocatable :: meridional_damp_vtx_ly   (:,:,:)
+
   contains
     procedure :: init => block_init
     final :: block_final
@@ -99,6 +104,10 @@ contains
     call allocate_array(this%mesh, this%meridional_damp_lat_gy   , full_lon=.true., full_lat=.true., full_lev=.true.)
     call allocate_array(this%mesh, this%meridional_damp_cell_gy  , full_lon=.true., half_lat=.true., full_lev=.true.)
     call allocate_array(this%mesh, this%meridional_damp_vtx_gy   , half_lon=.true., full_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_lon_ly   , half_lon=.true., full_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_lat_ly   , full_lon=.true., half_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_cell_ly  , full_lon=.true., full_lat=.true., full_lev=.true.)
+    call allocate_array(this%mesh, this%meridional_damp_vtx_ly   , half_lon=.true., half_lat=.true., full_lev=.true.)
 
   end subroutine block_init
 
@@ -118,6 +127,11 @@ contains
     if (allocated(this%meridional_damp_lat_gy   )) deallocate(this%meridional_damp_lat_gy   )
     if (allocated(this%meridional_damp_cell_gy  )) deallocate(this%meridional_damp_cell_gy  )
     if (allocated(this%meridional_damp_vtx_gy   )) deallocate(this%meridional_damp_vtx_gy   )
+    
+    if (allocated(this%meridional_damp_lon_ly   )) deallocate(this%meridional_damp_lon_ly   )
+    if (allocated(this%meridional_damp_lat_ly   )) deallocate(this%meridional_damp_lat_ly   )
+    if (allocated(this%meridional_damp_cell_ly  )) deallocate(this%meridional_damp_cell_ly  )
+    if (allocated(this%meridional_damp_vtx_ly   )) deallocate(this%meridional_damp_vtx_ly   )
 
   end subroutine block_final
 
