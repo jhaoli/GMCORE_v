@@ -431,8 +431,6 @@ contains
     else
         call apply_reduce(reduce_args(mf_lon_n   , reduce_mf_lon_n   ))
         call apply_reduce(reduce_args(mf_lat_n   , reduce_mf_lat_n   ))
-        call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
-        call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
         call apply_reduce(reduce_args(gz         , reduce_gz         ))
         call apply_reduce(reduce_args(m          , reduce_m          ))
       if (pass == all_pass .or. pass == slow_pass) then
@@ -441,12 +439,19 @@ contains
         call apply_reduce(reduce_args(u          , reduce_u          ))
         call apply_reduce(reduce_args(v          , reduce_v          ))
         call apply_reduce(reduce_args(pv         , reduce_pv         ))
-        call apply_reduce(reduce_args(dpv_lon_t  , reduce_dpv_lon_t  ))
-        call apply_reduce(reduce_args(dpv_lat_n  , reduce_dpv_lat_n  ))
-        call apply_reduce(reduce_args(dpv_lat_t  , reduce_dpv_lat_t  ))
-        call apply_reduce(reduce_args(dpv_lon_n  , reduce_dpv_lon_n  ))
-        call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_apvm))
-        call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_apvm))
+        if (pv_scheme == 3) then
+          call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
+          call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
+          call apply_reduce(reduce_args(dpv_lon_t  , reduce_dpv_lon_t  ))
+          call apply_reduce(reduce_args(dpv_lat_n  , reduce_dpv_lat_n  ))
+          call apply_reduce(reduce_args(dpv_lat_t  , reduce_dpv_lat_t  ))
+          call apply_reduce(reduce_args(dpv_lon_n  , reduce_dpv_lon_n  ))
+          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_apvm))
+          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_apvm))
+        else
+          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
+          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_midpoint))
+        end if
       end if
       if (pass == all_pass .or. pass == fast_pass) then
         call apply_reduce(reduce_args(ke         , reduce_ke         ))
@@ -1032,6 +1037,41 @@ contains
 
   end subroutine reduce_dpv_lat_n
 
+  subroutine reduce_pv_lon_midpoint(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
+
+    integer, intent(in) :: j
+    integer, intent(in) :: buf_j
+    integer, intent(in) :: move
+    type(block_type), intent(in) :: block
+    type(mesh_type), intent(in) :: raw_mesh
+    type(state_type), intent(inout) :: raw_state
+    type(reduced_mesh_type), intent(in) :: reduced_mesh
+    type(reduced_static_type), intent(in) :: reduced_static
+    type(reduced_state_type), intent(inout) :: reduced_state
+    real(r8), intent(in) :: dt
+
+    integer i, k
+
+    if (raw_mesh%is_pole(j+buf_j) .or. raw_mesh%is_outside_pole_full_lat(j+buf_j)) return
+    do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
+      do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
+#ifdef V_POLE
+        reduced_state%pv_lon(k,i,buf_j,move) = 0.5_r8 * (    &
+          reduced_state%pv(k,i,buf_j+1,move) +               &
+          reduced_state%pv(k,i,buf_j  ,move)                 &
+        )
+#else
+        reduced_state%pv_lon(k,i,buf_j,move) = 0.5_r8 * (    &
+          reduced_state%pv(k,i,buf_j-1,move) +               &
+          reduced_state%pv(k,i,buf_j  ,move)                 &
+        )
+#endif
+      end do
+    end do
+    call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%pv_lon(:,:,buf_j,move), east_halo=.false.)
+
+  end subroutine reduce_pv_lon_midpoint
+
   subroutine reduce_pv_lon_apvm(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
 
     integer, intent(in) :: j
@@ -1077,6 +1117,34 @@ contains
     call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%pv_lon(:,:,buf_j,move), east_halo=.false.)
 
   end subroutine reduce_pv_lon_apvm
+
+  subroutine reduce_pv_lat_midpoint(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
+
+    integer, intent(in) :: j
+    integer, intent(in) :: buf_j
+    integer, intent(in) :: move
+    type(block_type), intent(in) :: block
+    type(mesh_type), intent(in) :: raw_mesh
+    type(state_type), intent(inout) :: raw_state
+    type(reduced_mesh_type), intent(in) :: reduced_mesh
+    type(reduced_static_type), intent(in) :: reduced_static
+    type(reduced_state_type), intent(inout) :: reduced_state
+    real(r8), intent(in) :: dt
+
+    integer i, k
+
+    if (raw_mesh%is_pole(j+buf_j) .or. raw_mesh%is_outside_pole_half_lat(j+buf_j)) return
+    do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
+      do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
+        reduced_state%pv_lat(k,i,buf_j,move) = 0.5_r8 * (    &
+          reduced_state%pv(k,i  ,buf_j,move) +               &
+          reduced_state%pv(k,i-1,buf_j,move)                 &
+        )
+      end do
+    end do
+    call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%pv_lat(:,:,buf_j,move), west_halo=.false.)
+
+  end subroutine reduce_pv_lat_midpoint
 
   subroutine reduce_pv_lat_apvm(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
 

@@ -49,10 +49,11 @@ contains
     real(8), intent(in) :: dt
     type(state_type), intent(inout) :: state
 
-    !call zonal_damp_on_lon_edge(block, polar_damp_order, dt, state%u)
-    !call zonal_damp_on_lat_edge(block, polar_damp_order, dt, state%v)
+    call zonal_damp_on_lon_edge     (block, polar_damp_order, dt, state%u)
     call meridional_damp_on_lon_edge(block, polar_damp_order, dt, state%u)
+    call zonal_damp_on_lat_edge     (block, polar_damp_order, dt, state%v)
     call meridional_damp_on_lat_edge(block, polar_damp_order, dt, state%v)
+    call meridional_damp_on_vtx     (block, polar_damp_order, dt, state%vor)
 
     if (baroclinic) then
       call zonal_damp_on_cell(block, polar_damp_order, dt, state%pt)
