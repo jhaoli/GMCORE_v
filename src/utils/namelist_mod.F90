@@ -47,16 +47,16 @@ module namelist_mod
   integer :: color_proc_lat_reduce(100) = 0
   integer :: num_proc_lon_reduce(100) = 0
 
-  logical :: use_polar_damp = .true.
+  logical :: use_polar_damp = .false.
   character(30) :: damp_scheme = 'direct'
   integer :: polar_damp_order = 4
   integer :: polar_damp_cycles = 1
-  logical :: use_div_damp = .true.
+  logical :: use_div_damp = .false.
   integer :: div_damp_order = 2
   real(r8) :: div_damp_coef2 = 1.0_r8 / 128.0_r8
   real(r8) :: div_damp_coef4 = 0.01_r8
   integer :: div_damp_cycles = 1
-  logical :: use_vor_damp = .true.
+  logical :: use_vor_damp = .false.
   integer :: vor_damp_order = 2
   real(r8) :: vor_damp_coef2 = 0.001_r8
   real(r8) :: vor_damp_coef4 = 0.01_r8

@@ -120,7 +120,7 @@ contains
       call time_integrate(dt_in_seconds, proc%blocks)
       if (is_root_proc() .and. time_is_alerted('print')) call log_print_diag(curr_time%isoformat())
       call time_advance(dt_in_seconds)
-      call operators_prepare(proc%blocks, old, dt_in_seconds)
+!      call operators_prepare(proc%blocks, old, dt_in_seconds)
       call diagnose(proc%blocks, old)
       call output(proc%blocks, old)
     end do
