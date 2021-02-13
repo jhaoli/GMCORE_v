@@ -15,7 +15,7 @@ module vor_damp_mod
 
   public vor_damp_init
   public vor_damp_final
-  public vor_damp
+  public vor_damp_run
 
   real(r8), allocatable :: cv_full_lat(:,:)
   real(r8), allocatable :: cv_half_lat(:,:)
@@ -79,14 +79,14 @@ contains
 
   end subroutine vor_damp_final
 
-  subroutine vor_damp(block, state, tend)
+  subroutine vor_damp_run(block, dt, state)
 
-    type(block_type), intent(inout) :: block
-    type(state_type), intent(in) :: state
-    type(tend_type), intent(inout) :: tend
+    type(block_type), intent(in) :: block
+    real(8), intent(in) :: dt
+    type(state_type), intent(inout) :: state
 
     type(mesh_type), pointer :: mesh
-    integer i, j, k, jr, jb, move
+    integer i, j, k
 
     mesh => state%mesh
 
@@ -96,49 +96,30 @@ contains
         do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
           do i = mesh%half_lon_ibeg, mesh%half_lon_iend
 #ifdef V_POLE
-            tend%dvordlat(i,j,k) = cv_full_lat(j,k) * (state%vor(i,j+1,k) - state%vor(i,j,k)) / mesh%le_lon(j)
+            state%u(i,j,k) = state%u(i,j,k) - dt * cv_full_lat(j,k) * ( &
+              state%vor(i,j+1,k) - state%vor(i,j,k)) / mesh%le_lon(j)
 #else
-            tend%dvordlat(i,j,k) = cv_full_lat(j,k) * (state%vor(i,j,k) - state%vor(i,j-1,k)) / mesh%le_lon(j)
+            state%u(i,j,k) = state%u(i,j,k) - dt * cv_full_lat(j,k) * ( &
+              state%vor(i,j,k) - state%vor(i,j-1,k)) / mesh%le_lon(j)
 #endif
           end do
         end do
       end do
 
-      !sv = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
 #ifdef V_POLE
 #else
-          if (block%reduced_mesh(j)%reduce_factor > block%reduced_mesh(j+1)%reduce_factor) then
-            jr = j
-            jb = 0
-          else
-            jr = j + 1
-            jb = -1
-          end if
+            state%v(i,j,k) = state%v(i,j,k) + dt * cv_half_lat(j,k) * ( &
+              state%vor(i,j,k) - state%vor(i-1,j,k)) / mesh%le_lat(j)
 #endif
-          if (block%reduced_mesh(jr)%reduce_factor > 1) then
-            tend%dvordlon(:,j,k) = 0.0_r8
-            do move = 1, block%reduced_mesh(jr)%reduce_factor
-              do i = block%reduced_mesh(jr)%full_lon_ibeg, block%reduced_mesh(jr)%full_lon_iend
-                block%reduced_tend(jr)%dvordlon(i,k) = cv_half_lat(j,k) * ( &
-                  block%reduced_state(jr)%vor(k,i  ,jb,move) -              &
-                  block%reduced_state(jr)%vor(k,i-1,jb,move)                &
-                ) / block%reduced_mesh(jr)%le_lat(jb)
-              end do
-              call reduce_append_array(move, block%reduced_mesh(jr), block%reduced_tend(jr)%dvordlon(:,k), mesh, tend%dvordlon(:,j,k))
-            end do
-            call overlay_inner_halo(block, tend%dvordlon(:,j,k), west_halo=.true.)
-          else
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dvordlon(i,j,k) = cv_half_lat(j,k) * (state%vor(i,j,k) - state%vor(i-1,j,k)) / mesh%le_lat(j)
-            end do
-          end if
+          end do
         end do
       end do
     case (4)
     end select
 
-  end subroutine vor_damp
+  end subroutine vor_damp_run
 
 end module vor_damp_mod

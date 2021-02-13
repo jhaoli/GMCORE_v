@@ -144,15 +144,9 @@ contains
     reduced_mesh%reduce_factor = reduce_factor
 
     allocate(reduced_mesh%weights(reduce_factor))
-    r0 = (reduce_factor + 1.0_r8) * 0.5_r8
-    do i = 1, reduce_factor
-      reduced_mesh%weights(i) = exp((i - r0)**2 * log(0.1) / (1 - r0)**2)
-    end do
-    reduced_mesh%weights = reduced_mesh%weights / sum(reduced_mesh%weights)
-
     reduced_mesh%weights = 1.0_r8 / reduce_factor
 
-    reduced_mesh%halo_width    = 1
+    reduced_mesh%halo_width    = 2
     reduced_mesh%num_full_lon  = raw_mesh%num_full_lon / reduce_factor
     reduced_mesh%num_half_lon  = raw_mesh%num_half_lon / reduce_factor
     reduced_mesh%full_lon_ibeg = raw_mesh%full_lon_ibeg / reduce_factor + 1
@@ -1052,7 +1046,7 @@ contains
 
     integer i, k
 
-    if (raw_mesh%is_pole(j+buf_j) .or. raw_mesh%is_outside_pole_full_lat(j+buf_j)) return
+    if (reduced_mesh%le_lon(buf_j) == 0 .or. reduced_mesh%de_lon(buf_j) == 0) return
     do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
       do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
 #ifdef V_POLE
@@ -1133,7 +1127,7 @@ contains
 
     integer i, k
 
-    if (raw_mesh%is_pole(j+buf_j) .or. raw_mesh%is_outside_pole_half_lat(j+buf_j)) return
+    if (reduced_mesh%le_lat(buf_j) == 0 .or. reduced_mesh%de_lat(buf_j) == 0) return
     do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
       do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
         reduced_state%pv_lat(k,i,buf_j,move) = 0.5_r8 * (    &
@@ -1446,6 +1440,7 @@ contains
 
     allocate(reduced_tend%qhv     (is:ie,ks:ke))
     allocate(reduced_tend%fv      (is:ie,ks:ke))
+    allocate(reduced_tend%pgf_lon (is:ie,ks:ke))
     allocate(reduced_tend%dpedlon (is:ie,ks:ke))
     allocate(reduced_tend%dkedlon (is:ie,ks:ke))
     allocate(reduced_tend%dpdlon  (is:ie,ks:ke))

@@ -99,6 +99,7 @@ module reduced_types_mod
     real(r8), allocatable, dimension(:,:,:,:) :: dpv_lat_n
     real(r8), allocatable, dimension(:,:,:,:) :: ke
     ! Baroclinic:
+    real(r8), allocatable, dimension(:,:,:,:) :: gz_lev
     real(r8), allocatable, dimension(:,:,:,:) :: pt
     real(r8), allocatable, dimension(:,:,:,:) :: pt_lon
     real(r8), allocatable, dimension(:,:,:,:) :: ptf_lon
@@ -119,6 +120,7 @@ module reduced_types_mod
     real(r8), allocatable, dimension(:,:) :: fv
     real(r8), allocatable, dimension(:,:) :: fu
     real(r8), allocatable, dimension(:,:) :: dmfdlon
+    real(r8), allocatable, dimension(:,:) :: pgf_lon
     real(r8), allocatable, dimension(:,:) :: dpedlon
     real(r8), allocatable, dimension(:,:) :: dkedlon
     real(r8), allocatable, dimension(:,:) :: dptfdlon
@@ -169,6 +171,7 @@ contains
     if (allocated(this%dpv_lon_t  )) deallocate(this%dpv_lon_t  )
     if (allocated(this%dpv_lat_t  )) deallocate(this%dpv_lat_t  )
     if (allocated(this%ke         )) deallocate(this%ke         )
+    if (allocated(this%gz_lev     )) deallocate(this%gz_lev     )
     if (allocated(this%pt         )) deallocate(this%pt         )
     if (allocated(this%pt_lon     )) deallocate(this%pt_lon     )
     if (allocated(this%ptf_lon    )) deallocate(this%ptf_lon    )

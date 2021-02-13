@@ -98,12 +98,15 @@ set(source_files
   src/utils/parallel_types_mod.F90
   src/utils/parallel_mod.F90
   src/utils/debug_mod.F90
+  src/core/pgf/pgf_mod.F90
+  src/core/pgf/pgf_swm_mod.F90
+  src/core/pgf/pgf_lin97_mod.F90
   src/core/mesh_mod.F90
-  src/core/sigma_coord_mod.F90
-  src/core/hybrid_coord_test_mod.F90
-  src/core/hybrid_coord_ecmwf_mod.F90
-  src/core/hybrid_coord_mod.F90
-  src/core/vert_coord_mod.F90
+  src/core/vert_coord/sigma_coord_mod.F90
+  src/core/vert_coord/hybrid_coord_test_mod.F90
+  src/core/vert_coord/hybrid_coord_ecmwf_mod.F90
+  src/core/vert_coord/hybrid_coord_mod.F90
+  src/core/vert_coord/vert_coord_mod.F90
   src/core/state_mod.F90
   src/core/static_mod.F90
   src/core/tend_mod.F90
@@ -120,6 +123,7 @@ set(source_files
   src/core/damp/vor_damp_mod.F90
   src/core/damp/damp_mod.F90
   src/core/gmcore_mod.F90
+  src/physics/test_forcing_mod.F90
   src/tests/swm/rossby_haurwitz_wave_test_mod.F90
   src/tests/swm/mountain_zonal_flow_test_mod.F90
   src/tests/swm/jet_zonal_flow_test_mod.F90

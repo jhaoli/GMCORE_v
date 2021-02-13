@@ -38,6 +38,8 @@ module tend_mod
     real(r8), allocatable, dimension(:,:,:) :: dptfdlon ! Zonal potential temperature flux
     real(r8), allocatable, dimension(:,:,:) :: dptfdlat ! Meridional potential temperature flux
     real(r8), allocatable, dimension(:,:,:) :: dptfdlev ! Vertical potential temperature flux
+    real(r8), allocatable, dimension(:,:,:) :: pgf_lon
+    real(r8), allocatable, dimension(:,:,:) :: pgf_lat
     real(r8), allocatable, dimension(:,:,:) :: dpdlon
     real(r8), allocatable, dimension(:,:,:) :: dpdlat
     real(r8), allocatable, dimension(:,:,:) :: wedudlev
@@ -78,6 +80,8 @@ contains
     call allocate_array(mesh, this%dptfdlon, full_lon=.true., full_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%dptfdlat, full_lon=.true., full_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%dptfdlev, full_lon=.true., full_lat=.true., full_lev=.true.)
+    call allocate_array(mesh, this%pgf_lon , half_lon=.true., full_lat=.true., full_lev=.true.)
+    call allocate_array(mesh, this%pgf_lat , full_lon=.true., half_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%dpdlon  , half_lon=.true., full_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%dpdlat  , full_lon=.true., half_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%wedudlev, half_lon=.true., full_lat=.true., full_lev=.true.)
@@ -123,6 +127,8 @@ contains
     if (allocated(this%dptfdlon)) deallocate(this%dptfdlon)
     if (allocated(this%dptfdlat)) deallocate(this%dptfdlat)
     if (allocated(this%dptfdlev)) deallocate(this%dptfdlev)
+    if (allocated(this%pgf_lon )) deallocate(this%pgf_lon  )
+    if (allocated(this%pgf_lat )) deallocate(this%pgf_lat  )
     if (allocated(this%dpdlon  )) deallocate(this%dpdlon  )
     if (allocated(this%dpdlat  )) deallocate(this%dpdlat  )
     if (allocated(this%wedudlev)) deallocate(this%wedudlev)

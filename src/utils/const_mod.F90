@@ -24,7 +24,8 @@ module const_mod
   real(r8), parameter :: Rv     = 461.497_r8                ! J kg-1 K-1
   real(r8), parameter :: cp     = 1004.0_r8                 ! J kg-1 K-1
   real(r8), parameter :: cv     = 717.0_r8                  ! J kg-1 K-1
-  
+  real(r8), parameter :: Rd_o_cp= Rd / cp
+
   integer, parameter :: nest_ratio = 3
   integer, parameter :: inf_i4 = 10000000
 

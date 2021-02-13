@@ -11,11 +11,11 @@ module ke_mod
 
   private
 
-  public calc_ke_cell
+  public calc_ke
 
 contains
 
-  subroutine calc_ke_cell(block, state)
+  subroutine calc_ke(block, state)
 
     type(block_type), intent(in) :: block
     type(state_type), intent(inout) :: state
@@ -115,6 +115,6 @@ contains
 #endif
     call fill_halo(block, state%ke, full_lon=.true., full_lat=.true., full_lev=.true., west_halo=.false.)
 
-  end subroutine calc_ke_cell
+  end subroutine calc_ke
 
 end module ke_mod

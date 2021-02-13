@@ -89,13 +89,10 @@ contains
 
     select case (div_damp_order)
     case (2)
-      cycle_loop: do cyc = 1, div_damp_cycles
-        call calc_div(block, state)
-
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
           do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
             do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              state%u(i,j,k) = state%u(i,j,k) + dt / div_damp_cycles * cd_full_lat(j,k) * ( &
+              state%u(i,j,k) = state%u(i,j,k) + dt * cd_full_lat(j,k) * ( &
                 state%div(i+1,j,k) - state%div(i,j,k)) / mesh%de_lon(j)
             end do
           end do
@@ -106,17 +103,16 @@ contains
           do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
             do i = mesh%full_lon_ibeg, mesh%full_lon_iend
 #ifdef V_POLE
-              state%v(i,j,k) = state%v(i,j,k) + dt / div_damp_cycles * cd_half_lat(j,k) * ( &
+              state%v(i,j,k) = state%v(i,j,k) + dt * cd_half_lat(j,k) * ( &
                 state%div(i,j,k) - state%div(i,j-1,k)) / mesh%de_lat(j)
 #else
-              state%v(i,j,k) = state%v(i,j,k) + dt / div_damp_cycles * cd_half_lat(j,k) * ( &
+              state%v(i,j,k) = state%v(i,j,k) + dt * cd_half_lat(j,k) * ( &
                 state%div(i,j+1,k) - state%div(i,j,k)) / mesh%de_lat(j)
 #endif
             end do
           end do
         end do
         call fill_halo(block, state%v, full_lon=.true., full_lat=.false., full_lev=.true.)
-      end do cycle_loop
     case (4)
     end select
 

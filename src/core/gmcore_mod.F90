@@ -15,7 +15,9 @@ module gmcore_mod
   use interp_mod
   use reduce_mod
   use debug_mod
+  use pgf_mod
   use damp_mod
+  use test_forcing_mod
 
   implicit none
 
@@ -64,6 +66,7 @@ contains
     call history_init()
     call restart_init()
     call reduce_init(proc%blocks)
+    call pgf_init()
     call damp_init()
 
     select case (time_scheme)
@@ -164,7 +167,7 @@ contains
         end do
       end if
       call history_write_state(blocks, itime)
-      call history_write_debug(blocks, itime)
+      if (output_debug) call history_write_debug(blocks, itime)
     end if
     if (time_is_alerted('restart_write')) then
       call restart_write(blocks, itime)
@@ -328,186 +331,17 @@ contains
         call calc_dmfdlon_dmfdlat(block, state, tend, dt)
         call calc_qhu_qhv        (block, state, tend, dt)
         call calc_dkedlon_dkedlat(block, state, tend, dt)
-        call calc_dpedlon_dpedlat(block, state, tend, dt)
-
+        call pgf_run             (block, state, tend    )
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
           do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
             do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) =   tend%qhv(i,j,k) - tend%dpedlon(i,j,k) - tend%dkedlon(i,j,k)
+              tend%du(i,j,k) =   tend%qhv(i,j,k) - tend%pgf_lon(i,j,k) - tend%dkedlon(i,j,k)
             end do
           end do
 
           do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
             do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = - tend%qhu(i,j,k) - tend%dpedlat(i,j,k) - tend%dkedlat(i,j,k)
-            end do
-          end do
-
-          do j = mesh%full_lat_ibeg, mesh%full_lat_iend
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dgz(i,j,k) = - (tend%dmfdlon(i,j,k) + tend%dmfdlat(i,j,k)) * g
-            end do
-          end do
-        end do
-
-        tend%updated_du  = .true.
-        tend%updated_dv  = .true.
-        tend%updated_dgz = .true.
-      end if
-    case (all_pass + forward_pass)
-      if (baroclinic .and. hydrostatic) then
-        call calc_dmfdlon_dmfdlat  (block, state, tend, dt)
-        call calc_dphs             (block, state, tend, dt)
-        call calc_wedphdlev        (block, state, tend, dt)
-        call calc_dptfdlon_dptfdlat(block, state, tend, dt)
-        call calc_dptfdlev         (block, state, tend, dt)
-        call calc_wedudlev_wedvdlev(block, state, tend, dt)
-        call calc_qhu_qhv          (block, state, tend, dt)
-        call calc_dkedlon_dkedlat  (block, state, tend, dt)
-
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-            do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) =   tend%qhv(i,j,k) - tend%dkedlon(i,j,k) - tend%wedudlev(i,j,k)
-            end do
-          end do
-
-          do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = - tend%qhu(i,j,k) - tend%dkedlat(i,j,k) - tend%wedvdlev(i,j,k)
-            end do
-          end do
-
-          do j = mesh%full_lat_ibeg, mesh%full_lat_iend
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dpt(i,j,k) = - tend%dptfdlon(i,j,k) - tend%dptfdlat(i,j,k) - tend%dptfdlev(i,j,k)
-            end do
-          end do
-        end do
-
-        tend%updated_dphs = .true.
-        tend%updated_dpt  = .true.
-      else
-        if (is_root_proc()) call log_error('Unfinished branch!', __FILE__, __LINE__)
-      end if
-    case (all_pass + backward_pass)
-      if (baroclinic .and. hydrostatic) then
-        call calc_dpedlon_dpedlat  (block, state, tend, dt)
-        call calc_dpdlon_dpdlat    (block, state, tend, dt)
-
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-            do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) = tend%du(i,j,k) - tend%dpedlon(i,j,k) - tend%dpdlon(i,j,k)
-            end do
-          end do
-
-          do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = tend%dv(i,j,k) - tend%dpedlat(i,j,k) - tend%dpdlat(i,j,k)
-            end do
-          end do
-        end do
-
-        tend%updated_du = .true.
-        tend%updated_dv = .true.
-      else
-        if (is_root_proc()) call log_error('Unfinished branch!', __FILE__, __LINE__)
-      end if
-    case (slow_pass)
-      if (baroclinic .and. hydrostatic) then
-        call calc_qhu_qhv          (block, state, tend, dt)
-
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-            do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) =   tend%qhv(i,j,k)
-            end do
-          end do
-
-          do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = - tend%qhu(i,j,k)
-            end do
-          end do
-        end do
-
-        tend%updated_du   = .true.
-        tend%updated_dv   = .true.
-        tend%copy_pt      = .true.
-        tend%copy_phs     = .true.
-      else
-        call calc_qhu_qhv          (block, state, tend, dt)
-
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-            do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) =   tend%qhv(i,j,k)
-            end do
-          end do
-
-          do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = - tend%qhu(i,j,k)
-            end do
-          end do
-        end do
-
-        tend%updated_du = .true.
-        tend%updated_dv = .true.
-        tend%copy_gz    = .true.
-      end if
-    case (fast_pass)
-      if (baroclinic .and. hydrostatic) then
-        call calc_dmfdlon_dmfdlat  (block, state, tend, dt)
-        call calc_dphs             (block, state, tend, dt)
-        call calc_wedphdlev        (block, state, tend, dt)
-        call calc_wedudlev_wedvdlev(block, state, tend, dt)
-        call calc_dptfdlev         (block, state, tend, dt)
-        call calc_dptfdlon_dptfdlat(block, state, tend, dt)
-        call calc_dpedlon_dpedlat  (block, state, tend, dt)
-        call calc_dkedlon_dkedlat  (block, state, tend, dt)
-        call calc_dpdlon_dpdlat    (block, state, tend, dt)
-
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-            do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) = - tend%wedudlev(i,j,k) - tend%dkedlon(i,j,k) - tend%dpedlon(i,j,k) - tend%dpdlon(i,j,k)
-            end do
-          end do
-
-          do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = - tend%wedvdlev(i,j,k) - tend%dkedlat(i,j,k) - tend%dpedlat(i,j,k) - tend%dpdlat(i,j,k)
-            end do
-          end do
-
-          do j = mesh%full_lat_ibeg, mesh%full_lat_iend
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dpt(i,j,k) = - tend%dptfdlon(i,j,k) - tend%dptfdlat(i,j,k) - tend%dptfdlev(i,j,k)
-            end do
-          end do
-        end do
-
-        tend%updated_du   = .true.
-        tend%updated_dv   = .true.
-        tend%updated_dpt  = .true.
-        tend%updated_dphs = .true.
-      else
-        call calc_dkedlon_dkedlat(block, state, tend, dt)
-        call calc_dpedlon_dpedlat(block, state, tend, dt)
-        call calc_dmfdlon_dmfdlat(block, state, tend, dt)
-
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-            do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) = - tend%dpedlon(i,j,k) - tend%dkedlon(i,j,k)
-            end do
-          end do
-
-          do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-            do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = - tend%dpedlat(i,j,k) - tend%dkedlat(i,j,k)
+              tend%dv(i,j,k) = - tend%qhu(i,j,k) - tend%pgf_lat(i,j,k) - tend%dkedlat(i,j,k)
             end do
           end do
 
@@ -526,23 +360,6 @@ contains
 
     ! call debug_check_space_operators(block, state, tend)
 
-    if (use_vor_damp) then
-      call vor_damp(block, state, tend)
-
-      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-            tend%du(i,j,k) = tend%du(i,j,k) - tend%dvordlat(i,j,k)
-          end do
-        end do
-        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-            tend%dv(i,j,k) = tend%dv(i,j,k) + tend%dvordlon(i,j,k)
-          end do
-        end do
-      end do
-    end if
-
   end subroutine space_operators
 
   subroutine time_integrate(dt, blocks)
@@ -558,9 +375,15 @@ contains
       if (use_div_damp) then
         call div_damp(blocks(iblk), dt, blocks(iblk)%state(new))
       end if
+      if (use_vor_damp) then
+        call vor_damp_run(blocks(iblk), dt, blocks(iblk)%state(new))
+      end if
       if (use_polar_damp) then
         call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
       end if
+
+      call test_forcing_run(blocks(iblk), dt, blocks(iblk)%state(new))
+
       if (use_div_damp .or. use_polar_damp) then
         call operators_prepare(blocks(iblk), blocks(iblk)%state(new), dt, all_pass)
       end if

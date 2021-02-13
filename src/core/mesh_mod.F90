@@ -58,6 +58,10 @@ module mesh_mod
     real(r8) end_lat
     real(r8) dlon
     real(r8), allocatable, dimension(:  ) :: dlat
+    real(r8), allocatable, dimension(:  ) :: full_dlev
+    real(r8), allocatable, dimension(:  ) :: half_dlev
+    real(r8), allocatable, dimension(:  ) :: half_dlev_upper
+    real(r8), allocatable, dimension(:  ) :: half_dlev_lower
     real(r8) total_area
     real(r8), allocatable, dimension(:  ) :: full_lon
     real(r8), allocatable, dimension(:  ) :: half_lon
@@ -112,6 +116,8 @@ module mesh_mod
     procedure :: is_south_pole => mesh_is_south_pole
     procedure :: is_north_pole => mesh_is_north_pole
     procedure :: is_pole => mesh_is_pole
+    procedure :: is_full_lat_next_to_pole => mesh_is_full_lat_next_to_pole
+    procedure :: is_half_lat_next_to_pole => mesh_is_half_lat_next_to_pole
     procedure :: is_inside_with_halo_full_lat => mesh_is_inside_with_halo_full_lat
     procedure :: is_inside_with_halo_half_lat => mesh_is_inside_with_halo_half_lat
     procedure :: is_outside_pole_full_lat => mesh_is_outside_pole_full_lat
@@ -165,6 +171,13 @@ contains
     this%half_lev_ibeg = 1
     this%half_lev_iend = this%num_half_lev
 
+    ! Here we set baroclinic according to levels.
+    baroclinic = this%num_full_lev > 1
+    if (.not. baroclinic) then
+      hydrostatic = .false.
+      nonhydrostatic = .false.
+    end if
+
     this%id             = merge(id            , -1, present(id))
     this%lon_halo_width = merge(lon_halo_width,  1, present(lon_halo_width))
     this%lat_halo_width = merge(lat_halo_width,  1, present(lat_halo_width))
@@ -174,7 +187,7 @@ contains
     this%end_lat        =  pi05
 
     call this%common_init()
-
+    
     this%dlon = (this%end_lon - this%start_lon) / this%num_full_lon
     do i = this%full_lon_lb, this%full_lon_ub
       this%full_lon(i) = this%start_lon + (i - 1) * this%dlon
@@ -191,16 +204,14 @@ contains
       if (abs(this%full_lat(j)) < 1.0e-14) this%full_lat(j) = 0.0_r8
     end do
 
-    ! Calculate real dlat which is large at polar region.
-    if (coarse_polar_lats_exp > 0) then
-      this%dlat(1:this%num_full_lat) = exp(                                            &
-        -coarse_polar_lats_exp * (abs(this%full_lat(1:this%num_full_lat)) - pi / 2)**2 &
-      )
-      this%dlat(1:this%num_full_lat) = (                           &
-        1 + coarse_polar_lats_mul * this%dlat(1:this%num_full_lat) &
-      ) / sum(1 + coarse_polar_lats_mul * this%dlat(1:this%num_full_lat)) * pi
+    if (coarse_pole_mul /= 0)  then
+      ! Calculate real dlat which is large at polar region.
+      do j = 1, this%num_full_lat
+        this%dlat(j) = dlat0 * (1 + (coarse_pole_mul - 1) * exp(-coarse_pole_decay * (abs(this%full_lat(j)) - pi05)**2))
+      end do
+      this%dlat(1:this%num_full_lat) = this%dlat(1:this%num_full_lat) / sum(this%dlat(1:this%num_full_lat)) * pi
     else
-      this%dlat(1:this%num_half_lat) = dlat0
+      this%dlat(1:this%num_full_lat) = dlat0
     end if
 
     ! Set latitudes of half merdional grids.
@@ -228,15 +239,14 @@ contains
       this%half_lat(j) = this%start_lat + (j - 0.5_r8) * dlat0
       if (abs(this%half_lat(j)) < 1.0e-14) this%half_lat(j) = 0.0_r8
     end do
-
-    ! Calculate real dlat which is large at polar region.
-    if (coarse_polar_lats_exp > 0) then
-      this%dlat(1:this%num_half_lat) = exp(                                            &
-        -coarse_polar_lats_exp * (abs(this%half_lat(1:this%num_half_lat)) - pi / 2)**2 &
-      )
-      this%dlat(1:this%num_half_lat) = (                           &
-        1 + coarse_polar_lats_mul * this%dlat(1:this%num_half_lat) &
-      ) / sum(1 + coarse_polar_lats_mul * this%dlat(1:this%num_half_lat)) * pi
+   
+    if (coarse_pole_mul /= 0) then
+      ! Calculate real dlat which is large at polar region.
+      dlat0 = this%dlon
+      do j = 1, this%num_half_lat
+        this%dlat(j) = dlat0 * (1 + (coarse_pole_mul - 1) * exp(-coarse_pole_decay * (abs(this%half_lat(j)) - pi05)**2))
+      end do
+      this%dlat(1:this%num_half_lat) = this%dlat(1:this%num_half_lat) / sum(this%dlat(1:this%num_half_lat)) * pi
     else
       this%dlat(1:this%num_half_lat) = dlat0
     end if
@@ -260,6 +270,20 @@ contains
       this%half_lat_deg(j) = this%half_lat(j) * deg
     end do
 #endif
+
+    ! Ensure the grids are equatorial symmetry.
+    do j = 1, this%num_full_lat
+      if (this%full_lat(j) > 0) then
+        this%full_lat(j) = -this%full_lat(this%num_full_lat-j+1)
+        this%full_lat_deg(j) = -this%full_lat_deg(this%num_full_lat-j+1)
+      end if
+    end do
+    do j = 1, this%num_half_lat
+      if (this%half_lat(j) > 0) then
+        this%half_lat(j) = -this%half_lat(this%num_half_lat-j+1)
+        this%half_lat_deg(j) = -this%half_lat_deg(this%num_half_lat-j+1)
+      end if
+    end do
 
     do i = this%full_lon_lb, this%full_lon_ub
       this%full_cos_lon(i) = cos(this%full_lon(i))
@@ -668,6 +692,11 @@ contains
 
     call this%common_init()
 
+    this%full_dlev = parent%full_dlev
+    this%half_dlev = parent%half_dlev
+    this%half_dlev_upper = parent%half_dlev_upper
+    this%half_dlev_lower = parent%half_dlev_lower
+
     this%dlon = parent%dlon
     do i = this%full_lon_lb, this%full_lon_ub
       this%full_lon(i) = parent%full_lon(i)
@@ -756,6 +785,10 @@ contains
 #else
     allocate(this%dlat               (this%half_lat_lb:this%half_lat_ub)); this%dlat                = 0.0_r8
 #endif
+    allocate(this%full_dlev          (this%full_lev_lb:this%full_lev_ub)); this%full_dlev           = 0.0_r8
+    allocate(this%half_dlev          (this%half_lev_lb:this%half_lev_ub)); this%half_dlev           = 0.0_r8
+    allocate(this%half_dlev_upper    (this%half_lev_lb:this%half_lev_ub)); this%half_dlev_upper     = 0.0_r8
+    allocate(this%half_dlev_lower    (this%half_lev_lb:this%half_lev_ub)); this%half_dlev_lower     = 0.0_r8
     allocate(this%full_lon           (this%full_lon_lb:this%full_lon_ub)); this%full_lon            = inf
     allocate(this%half_lon           (this%half_lon_lb:this%half_lon_ub)); this%half_lon            = inf
     allocate(this%full_lat           (this%full_lat_lb:this%full_lat_ub)); this%full_lat            = inf
@@ -827,7 +860,8 @@ contains
     class(mesh_type), intent(in) :: this
     integer, intent(in) :: j
 
-    res = this%has_south_pole() .and. j == 1
+    ! FIXME: has_south_pole should be removed.
+    res = j == 1 !res = this%has_south_pole() .and. j == 1
 
   end function mesh_is_south_pole
 
@@ -852,6 +886,32 @@ contains
     res = this%is_south_pole(j) .or. this%is_north_pole(j)
 
   end function mesh_is_pole
+
+  logical function mesh_is_full_lat_next_to_pole(this, j) result(res)
+
+    class(mesh_type), intent(in) :: this
+    integer, intent(in) :: j
+
+#ifdef V_POLE
+    res = j == 1 .or. j == global_mesh%num_full_lat
+#else
+    res = j == 2 .or. j == global_mesh%num_full_lat - 1
+#endif
+
+  end function mesh_is_full_lat_next_to_pole
+
+  logical function mesh_is_half_lat_next_to_pole(this, j) result(res)
+
+    class(mesh_type), intent(in) :: this
+    integer, intent(in) :: j
+
+#ifdef V_POLE
+    res = j == 2 .or. j == global_mesh%num_half_lat - 1
+#else
+    res = j == 1 .or. j == global_mesh%num_half_lat
+#endif
+
+  end function mesh_is_half_lat_next_to_pole
 
   logical function mesh_is_inside_with_halo_full_lat(this, j) result(res)
 
@@ -893,6 +953,11 @@ contains
 
     type(mesh_type), intent(inout) :: this
 
+    if (allocated(this%dlat            )) deallocate(this%dlat            )
+    if (allocated(this%full_dlev       )) deallocate(this%full_dlev       )
+    if (allocated(this%half_dlev       )) deallocate(this%half_dlev       )
+    if (allocated(this%half_dlev_upper )) deallocate(this%half_dlev_upper )
+    if (allocated(this%half_dlev_lower )) deallocate(this%half_dlev_lower )
     if (allocated(this%full_lon        )) deallocate(this%full_lon        )
     if (allocated(this%full_lat        )) deallocate(this%full_lat        )
     if (allocated(this%full_lev        )) deallocate(this%full_lev        )

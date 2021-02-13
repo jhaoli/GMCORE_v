@@ -10,6 +10,7 @@ program gmcore_driver
   use rossby_haurwitz_wave_3d_test_mod
   use mountain_wave_test_mod
   use baroclinic_wave_test_mod
+  use held_suarez_test_mod
 !  use steady_state_pgf_test_mod
 
   implicit none
@@ -37,11 +38,13 @@ program gmcore_driver
   case ('steady_state')
     set_initial_condition => steady_state_test_set_initial_condition
   case ('rossby_haurwitz_wave')
-    set_initial_condition => rossby_haurwitz_wave_3d_test_set_initial_condition
+    set_initial_condition => rossby_haurwitz_wave_3d_test_set_ic
   case ('mountain_wave')
     set_initial_condition => mountain_wave_test_set_initial_condition
   case ('baroclinic_wave')
     set_initial_condition => baroclinic_wave_test_set_initial_condition
+  case ('held_suarez')
+    set_initial_condition => held_suarez_test_set_ic
 !  case ('steady_state_pgf')
 !    set_initial_condition => steady_state_pgf_test_set_initial_condition
   case default

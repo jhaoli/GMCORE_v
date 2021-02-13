@@ -12,6 +12,7 @@ module sigma_coord_mod
 
   public sigma_coord_init
   public sigma_coord_final
+  public sigma_coord_calc_ph
   public sigma_coord_calc_ph_lev
   public sigma_coord_calc_dphdt_lev
 
@@ -25,10 +26,11 @@ module sigma_coord_mod
 
 contains
 
-  subroutine sigma_coord_init(num_lev, namelist_path)
+  subroutine sigma_coord_init(num_lev, namelist_file, template)
 
     integer, intent(in) :: num_lev
-    character(*), intent(in) :: namelist_path
+    character(*), intent(in), optional :: namelist_file
+    character(*), intent(in), optional :: template
 
     integer ierr, k
 
@@ -38,16 +40,20 @@ contains
     allocate(sigi(num_lev+1)); sigi = 0
     allocate(sig (num_lev  )); sig  = 0
 
-    open(10, file=namelist_path, status='old')
-    read(10, nml=sigma_coord, iostat=ierr)
-    close(10)
+    if (present(namelist_file)) then
+      open(10, file=namelist_file, status='old')
+      read(10, nml=sigma_coord, iostat=ierr)
+      close(10)
+    !else
+    !  if (is_root_proc()) call log_error('Module sigma_coord_mod needs namelist_file argument!')
+    end if
 
     if (ierr /= 0) then
       if (.not. baroclinic) then
         if (is_root_proc()) call log_notice('Run shallow-water model.')
         return
       !else
-      !  call log_error('No sigma_coord parameters in ' // trim(namelist_path) // '!')
+      !  call log_error('No sigma_coord parameters in ' // trim(namelist_file) // '!')
       end if
     end if
 
@@ -89,6 +95,15 @@ contains
     deallocate(sig )
 
   end subroutine sigma_coord_final
+
+  pure real(r8) function sigma_coord_calc_ph(k, phs) result(res)
+
+    integer, intent(in) :: k
+    real(r8), intent(in) :: phs
+
+    res = sig(k) * (phs - pt) + pt
+
+  end function sigma_coord_calc_ph
 
   pure real(r8) function sigma_coord_calc_ph_lev(k, phs) result(res)
 
