@@ -67,6 +67,7 @@ contains
     call restart_init()
     call reduce_init(proc%blocks)
     call pgf_init()
+    call interp_pv_init()
     call damp_init()
 
     select case (time_scheme)
@@ -132,6 +133,7 @@ contains
 
   subroutine gmcore_final()
 
+    call interp_pv_final()
     call damp_final()
     call history_final()
     call process_final()

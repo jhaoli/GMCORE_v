@@ -27,8 +27,6 @@ module operators_mod
   public calc_m
   public calc_m_lon_m_lat
   public calc_m_vtx
-  public calc_mf_lon_n_mf_lat_n
-  public calc_mf_lon_t_mf_lat_t
   public calc_qhu_qhv
   public calc_dkedlon_dkedlat
   public calc_dpedlon_dpedlat
@@ -38,6 +36,8 @@ module operators_mod
   public calc_dptfdlev
   public calc_dphs
   public calc_wedudlev_wedvdlev
+  public interp_pv_init
+  public interp_pv_final
 
   interface operators_prepare
     module procedure operators_prepare_1
@@ -63,8 +63,8 @@ contains
       call calc_m_vtx               (blocks(iblk), blocks(iblk)%state(itime))
       call calc_mf_lon_n_mf_lat_n   (blocks(iblk), blocks(iblk)%state(itime))
       call calc_mf_lon_t_mf_lat_t   (blocks(iblk), blocks(iblk)%state(itime))
-      call calc_pv_vtx              (blocks(iblk), blocks(iblk)%state(itime))
-      call calc_pv_edge             (blocks(iblk), blocks(iblk)%state(itime), dt)
+      call diag_pv                  (blocks(iblk), blocks(iblk)%state(itime))
+      call interp_pv                (blocks(iblk), blocks(iblk)%state(itime), dt)
       call calc_ke                  (blocks(iblk), blocks(iblk)%state(itime))
       call calc_gz_lev_gz           (blocks(iblk), blocks(iblk)%state(itime))
       call calc_pt_lon_pt_lat_pt_lev(blocks(iblk), blocks(iblk)%state(itime))
@@ -94,8 +94,8 @@ contains
     call calc_pt_lon_pt_lat_pt_lev(block, state)
     if (pass == all_pass .or. pass == slow_pass) then
       call calc_m_vtx             (block, state)
-      call calc_pv_vtx            (block, state)
-      call calc_pv_edge           (block, state, dt)
+      call diag_pv                (block, state)
+      call interp_pv              (block, state, dt)
       call calc_div               (block, state)
     end if
 
@@ -567,7 +567,7 @@ contains
 
   end subroutine calc_mf_lon_t_mf_lat_t
 
-  subroutine calc_pv_edge(block, state, dt)
+  subroutine interp_pv(block, state, dt)
     
     type(block_type), intent(in) :: block
     type(state_type), intent(inout) :: state 
@@ -575,14 +575,16 @@ contains
 
     select case (pv_scheme)
     case (1)
-      call calc_pv_edge_midpoint(block, state)
+      call interp_pv_midpoint(block, state)
+    case (2)
+      call interp_pv_upwind(block, state, upwind_wgt_=upwind_wgt_pv, enhance_pole=.true.)
     case (3)
-      call calc_pv_edge_apvm(block, state, dt)
+      call interp_pv_apvm(block, state, dt)
     case default
       call log_error('Unknown PV scheme!')
     end select
 
-  end subroutine calc_pv_edge
+  end subroutine interp_pv
 
   subroutine calc_qhu_qhv(block, state, tend, dt)
 
@@ -596,7 +598,7 @@ contains
 
     mesh => state%mesh
 
-    call calc_pv_edge(block, state, dt)
+    call interp_pv(block, state, dt)
 
 #ifdef V_POLE
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
