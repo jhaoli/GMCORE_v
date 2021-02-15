@@ -115,6 +115,7 @@ contains
       call fiona_add_var('h0', 'z'    , long_name='height'                      , units='m'      , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'zs'   , long_name='surface height'              , units='m'      , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'pv'   , long_name='potential vorticity'         , units='m-1 s-1', dim_names=vtx_dims_2d)
+      call fiona_add_var('h0', 'div'  , long_name='divergence'                  , units='s-1'    , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'vor'  , long_name='relative vorticity'          , units='s-1'    , dim_names=vtx_dims_2d)
       call fiona_add_var('h0', 'tm'   , long_name='total mass'                  , units='m'      , dim_names=['time'])
       call fiona_add_var('h0', 'te'   , long_name='total energy'                , units='m4 s-4' , dim_names=['time'], data_type='real(8)')
@@ -187,7 +188,6 @@ contains
       call fiona_add_var('h1', 'pv_lon'   , long_name='pv on U grid'                                  , units='', dim_names=lon_dims_2d)
       call fiona_add_var('h1', 'pv_lat'   , long_name='pv on V grid'                                  , units='', dim_names=lat_dims_2d)
       call fiona_add_var('h1', 'ke'       , long_name='kinetic energy on cell grid'                   , units='', dim_names=cell_dims_2d)
-      call fiona_add_var('h1', 'div'      , long_name='divergence'                                    , units='', dim_names=cell_dims_2d)
     end if
 
     if(.not. allocated(ua)) call allocate_array(global_mesh, ua, full_lon=.true., full_lat=.true., full_lev=.true.)
@@ -255,7 +255,9 @@ contains
       call fiona_output('h0', 'ua' , ua        (is:ie,js:je,ks:ke)      , start=start, count=count)
       call fiona_output('h0', 'va' , va        (is:ie,js:je,ks:ke)      , start=start, count=count)
       call fiona_output('h0', 'div', state%div (is:ie,js:je,ks:ke)      , start=start, count=count)
-      call fiona_output('h0', 'wp' , state%wp  (is:ie,js:je,ks:ke)      , start=start, count=count)
+      if (baroclinic) then
+        call fiona_output('h0', 'wp' , state%wp  (is:ie,js:je,ks:ke)      , start=start, count=count)
+      end if
 
       if (baroclinic) then
         call fiona_output('h0', 't'     , state%t     (is:ie,js:je,ks:ke), start=start, count=count)
