@@ -9,6 +9,7 @@ module gmcore_mod
   use time_mod, old => old_time_idx, new => new_time_idx
   use history_mod
   use restart_mod
+  use tend_mod
   use block_mod
   use vert_coord_mod
   use operators_mod
@@ -67,6 +68,7 @@ contains
     call restart_init()
     call reduce_init(proc%blocks)
     call pgf_init()
+    call interp_init()
     call interp_pv_init()
     call damp_init()
 
@@ -133,6 +135,7 @@ contains
 
   subroutine gmcore_final()
 
+    call interp_final()
     call interp_pv_final()
     call damp_final()
     call history_final()
@@ -268,6 +271,7 @@ contains
       blocks(iblk)%state(itime)%tm  = tm
       blocks(iblk)%state(itime)%te  = te
       blocks(iblk)%state(itime)%tpe = tpe
+      blocks(iblk)%state(itime)%tav = tav
     end do
 
     call log_add_diag('tm' , tm )
@@ -293,28 +297,28 @@ contains
 
     select case (pass)
     case (all_pass)
-      if (baroclinic .and. hydrostatic) then
+      if (baroclinic) then
         call calc_dmfdlon_dmfdlat  (block, state, tend, dt)
         call calc_dphs             (block, state, tend, dt)
-        call calc_wedphdlev        (block, state, tend, dt)
+        call calc_wedphdlev_lev    (block, state, tend, dt)
         call calc_wedudlev_wedvdlev(block, state, tend, dt)
         call calc_dptfdlon_dptfdlat(block, state, tend, dt)
         call calc_dptfdlev         (block, state, tend, dt)
         call calc_qhu_qhv          (block, state, tend, dt)
         call calc_dkedlon_dkedlat  (block, state, tend, dt)
-        call calc_dpedlon_dpedlat  (block, state, tend, dt)
-        call calc_dpdlon_dpdlat    (block, state, tend, dt)
+        call pgf_run               (block, state, tend    )
+        call calc_wp               (block, state, tend, dt)
 
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
           do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
             do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-              tend%du(i,j,k) =   tend%qhv(i,j,k) - tend%dpedlon(i,j,k) - tend%dkedlon(i,j,k) - tend%dpdlon(i,j,k) - tend%wedudlev(i,j,k)
+              tend%du(i,j,k) =   tend%qhv(i,j,k) - tend%pgf_lon(i,j,k) - tend%dkedlon(i,j,k) - tend%wedudlev(i,j,k)
             end do
           end do
 
           do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
             do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-              tend%dv(i,j,k) = - tend%qhu(i,j,k) - tend%dpedlat(i,j,k) - tend%dkedlat(i,j,k) - tend%dpdlat(i,j,k) - tend%wedvdlev(i,j,k)
+              tend%dv(i,j,k) = - tend%qhu(i,j,k) - tend%pgf_lat(i,j,k) - tend%dkedlat(i,j,k) - tend%wedvdlev(i,j,k)
             end do
           end do
 
@@ -577,8 +581,8 @@ contains
         end do
         call fill_halo(block, new_state%phs, full_lon=.true., full_lat=.true.)
 
-        call calc_ph_lev_ph(block, new_state)
-        call calc_m        (block, new_state)
+        call diag_ph(block, new_state)
+        call diag_m (block, new_state)
       else if (tend%copy_phs) then
         new_state%phs    = old_state%phs
         new_state%ph_lev = old_state%ph_lev

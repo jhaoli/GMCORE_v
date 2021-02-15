@@ -27,9 +27,9 @@ module state_mod
     real(r8), allocatable, dimension(:,:,:) :: v700          ! Meridional wind speed on 700hPa
     real(r8), allocatable, dimension(:,:,:) :: w             ! Vertical wind speed
     real(r8), allocatable, dimension(:,:,:) :: wp            ! ω = dp / dt (Pa s-1)
-    real(r8), allocatable, dimension(:,:,:) :: wedphdlev     ! Vertical coordinate speed multiplied by 𝛛π/𝛛η
-    real(r8), allocatable, dimension(:,:,:) :: wedphdlev_lon ! Vertical coordinate speed multiplied by 𝛛π/𝛛η on zonal edge
-    real(r8), allocatable, dimension(:,:,:) :: wedphdlev_lat ! Vertical coordinate speed multiplied by 𝛛π/𝛛η on merdional edge
+    real(r8), allocatable, dimension(:,:,:) :: wedphdlev_lev ! Vertical coordinate speed multiplied by 𝛛π/𝛛η
+    real(r8), allocatable, dimension(:,:,:) :: wedphdlev_lev_lon ! Vertical coordinate speed multiplied by 𝛛π/𝛛η on zonal edge
+    real(r8), allocatable, dimension(:,:,:) :: wedphdlev_lev_lat ! Vertical coordinate speed multiplied by 𝛛π/𝛛η on merdional edge
     real(r8), allocatable, dimension(:,:,:) :: gz            ! Geopotential (m2 s-2)
     real(r8), allocatable, dimension(:,:,:) :: gz_p          ! Perturbed geopotential (m2 s-2)
     real(r8), allocatable, dimension(:,:,:) :: gz_lev        ! Geopotential height on half levels (m2 s-2)
@@ -103,9 +103,9 @@ contains
     call allocate_array(mesh, this%v700         , full_lon=.true., half_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%w            , full_lon=.true., full_lat=.true., half_lev=.true.)
     call allocate_array(mesh, this%wp           , full_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(mesh, this%wedphdlev    , full_lon=.true., full_lat=.true., half_lev=.true.)
-    call allocate_array(mesh, this%wedphdlev_lon, half_lon=.true., full_lat=.true., half_lev=.true.)
-    call allocate_array(mesh, this%wedphdlev_lat, full_lon=.true., half_lat=.true., half_lev=.true.)
+    call allocate_array(mesh, this%wedphdlev_lev, full_lon=.true., full_lat=.true., half_lev=.true.)
+    call allocate_array(mesh, this%wedphdlev_lev_lon, half_lon=.true., full_lat=.true., half_lev=.true.)
+    call allocate_array(mesh, this%wedphdlev_lev_lat, full_lon=.true., half_lat=.true., half_lev=.true.)
     call allocate_array(mesh, this%gz           , full_lon=.true., full_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%gz_p         , full_lon=.true., full_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%gz_lev       , full_lon=.true., full_lat=.true., half_lev=.true.)
@@ -166,9 +166,9 @@ contains
     if (allocated(this%v700         )) deallocate(this%v700         )
     if (allocated(this%w            )) deallocate(this%w            )
     if (allocated(this%wp           )) deallocate(this%wp           )
-    if (allocated(this%wedphdlev    )) deallocate(this%wedphdlev    )
-    if (allocated(this%wedphdlev_lon)) deallocate(this%wedphdlev_lon)
-    if (allocated(this%wedphdlev_lat)) deallocate(this%wedphdlev_lat)
+    if (allocated(this%wedphdlev_lev)) deallocate(this%wedphdlev_lev)
+    if (allocated(this%wedphdlev_lev_lon)) deallocate(this%wedphdlev_lev_lon)
+    if (allocated(this%wedphdlev_lev_lat)) deallocate(this%wedphdlev_lev_lat)
     if (allocated(this%gz           )) deallocate(this%gz           )
     if (allocated(this%gz_p         )) deallocate(this%gz_p         )
     if (allocated(this%gz_lev       )) deallocate(this%gz_lev       )

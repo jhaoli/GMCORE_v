@@ -24,7 +24,7 @@ contains
     type(state_type), intent(in) :: state
     type(tend_type), intent(inout) :: tend
 
-    real(r8) dph1, dph2, dgz1, dgz2, dp1, dp2, dpdph
+    real(r8) dph1, dph2, dgz1, dgz2
     integer i, j, k, move
 
     !                    o
@@ -50,8 +50,6 @@ contains
                reduced_tend  => block%reduced_tend , & ! inout
                ph_lev        => state%ph_lev       , & ! in
                gz_lev        => state%gz_lev       , & ! in
-               m_lon         => state%m_lon        , & ! in    !
-               m_lat         => state%m_lat        , & ! in    !
                pgf_lon       => tend%pgf_lon       , & ! out
                pgf_lat       => tend%pgf_lat)          ! out
       if (hydrostatic) then

@@ -1,5 +1,6 @@
 module debug_mod
 
+  use, intrinsic :: ieee_arithmetic
   use flogger
   use const_mod
   use namelist_mod
@@ -15,6 +16,17 @@ module debug_mod
   public debug_check_areas
   public debug_check_space_operators
   public debug_print_min_max
+  public debug_print_min_max_cell
+  public debug_print_min_max_lev_edge
+  public debug_print_min_max_lon_edge
+  public debug_print_min_max_lat_edge
+  public debug_is_inf
+
+  interface debug_print_min_max
+    module procedure debug_print_min_max_1d
+    module procedure debug_print_min_max_2d
+    module procedure debug_print_min_max_3d
+  end interface debug_print_min_max
 
 contains
 
@@ -145,7 +157,7 @@ contains
             ip_ke_h = ip_ke_h + tend%dkedlon (i,j,k) * state%mf_lon_n(i,j,k) * mesh%area_lon(j) * 2
             ip_ke_v = ip_ke_v + ( &
               tend%wedudlev(i,j,k) * state%mf_lon_n(i,j,k) + &
-              0.5_r8 * state%u(i,j,k)**2 * (state%wedphdlev_lon(i,j,k+1) - state%wedphdlev_lon(i,j,k)) &
+              0.5_r8 * state%u(i,j,k)**2 * (state%wedphdlev_lev_lon(i,j,k+1) - state%wedphdlev_lev_lon(i,j,k)) &
             ) * mesh%area_lon(j)
           end do
         end do
@@ -158,7 +170,7 @@ contains
             ip_ke_h = ip_ke_h + tend%dkedlat (i,j,k) * state%mf_lat_n(i,j,k) * mesh%area_lat(j) * 2
             ip_ke_v = ip_ke_v + ( &
               tend%wedvdlev(i,j,k) * state%mf_lat_n(i,j,k) + &
-              0.5_r8 * state%v(i,j,k)**2 * (state%wedphdlev_lat(i,j,k+1) - state%wedphdlev_lat(i,j,k)) &
+              0.5_r8 * state%v(i,j,k)**2 * (state%wedphdlev_lev_lat(i,j,k+1) - state%wedphdlev_lev_lat(i,j,k)) &
             ) * mesh%area_lat(j)
           end do
         end do
@@ -191,7 +203,7 @@ contains
           do i = mesh%half_lon_ibeg, mesh%half_lon_iend
             ip_cf = ip_cf  + tend%qhv    (i,j,k) * state%mf_lon_n(i,j,k) * mesh%area_lon(j)
             ip_ke = ip_ke + tend%dkedlon(i,j,k) * state%mf_lon_n(i,j,k) * mesh%area_lon(j) * 2
-            ip_pe = ip_pe + tend%dpedlon(i,j,k) * state%mf_lon_n(i,j,k) * mesh%area_lon(j) * 2
+            ip_pe = ip_pe + tend%pgf_lon(i,j,k) * state%mf_lon_n(i,j,k) * mesh%area_lon(j) * 2
           end do
         end do
       end do
@@ -201,7 +213,7 @@ contains
           do i = mesh%full_lon_ibeg, mesh%full_lon_iend
             ip_cf = ip_cf - tend%qhu    (i,j,k) * state%mf_lat_n(i,j,k) * mesh%area_lat(j)
             ip_ke = ip_ke + tend%dkedlat(i,j,k) * state%mf_lat_n(i,j,k) * mesh%area_lat(j) * 2
-            ip_pe = ip_pe + tend%dpedlat(i,j,k) * state%mf_lat_n(i,j,k) * mesh%area_lat(j) * 2
+            ip_pe = ip_pe + tend%pgf_lat(i,j,k) * state%mf_lat_n(i,j,k) * mesh%area_lat(j) * 2
           end do
         end do
       end do
@@ -230,12 +242,107 @@ contains
 
   end subroutine debug_check_space_operators
 
-  subroutine debug_print_min_max(array)
+  subroutine debug_print_min_max_1d(array, label)
+
+    real(r8), intent(in) :: array(:)
+    character(*), intent(in) :: label
+
+    write(6, *) trim(label), minval(array), maxval(array)
+
+  end subroutine debug_print_min_max_1d
+
+  subroutine debug_print_min_max_2d(array, label)
 
     real(r8), intent(in) :: array(:,:)
+    character(*), intent(in) :: label
 
-    print *, minval(array), maxval(array)
+    write(6, *) trim(label), minval(array), maxval(array)
 
-  end subroutine debug_print_min_max
+  end subroutine debug_print_min_max_2d
+
+  subroutine debug_print_min_max_3d(array, label)
+
+    real(r8), intent(in) :: array(:,:,:)
+    character(*), intent(in) :: label
+
+    write(6, *) trim(label), minval(array), maxval(array)
+
+  end subroutine debug_print_min_max_3d
+
+  subroutine debug_print_min_max_cell(mesh, array, label)
+
+    type(mesh_type), intent(in) :: mesh
+    real(r8), intent(in) :: array(mesh%full_lon_lb:mesh%full_lon_ub, &
+                                  mesh%full_lat_lb:mesh%full_lat_ub, &
+                                  mesh%full_lev_lb:mesh%full_lev_ub)
+    character(*), intent(in) :: label
+
+    write(6, *) trim(label), minval(array(mesh%full_lon_ibeg:mesh%full_lon_iend,   &
+                                          mesh%full_lat_ibeg:mesh%full_lat_iend,   &
+                                          mesh%full_lev_ibeg:mesh%full_lev_iend)), &
+                             maxval(array(mesh%full_lon_ibeg:mesh%full_lon_iend,   &
+                                          mesh%full_lat_ibeg:mesh%full_lat_iend,   &
+                                          mesh%full_lev_ibeg:mesh%full_lev_iend))
+
+  end subroutine debug_print_min_max_cell
+
+  subroutine debug_print_min_max_lev_edge(mesh, array, label)
+
+    type(mesh_type), intent(in) :: mesh
+    real(r8), intent(in) :: array(mesh%full_lon_lb:mesh%full_lon_ub, &
+                                  mesh%full_lat_lb:mesh%full_lat_ub, &
+                                  mesh%half_lev_lb:mesh%half_lev_ub)
+    character(*), intent(in) :: label
+
+    write(6, *) trim(label), minval(array(mesh%full_lon_ibeg:mesh%full_lon_iend,   &
+                                          mesh%full_lat_ibeg:mesh%full_lat_iend,   &
+                                          mesh%half_lev_ibeg:mesh%half_lev_iend)), &
+                             maxval(array(mesh%full_lon_ibeg:mesh%full_lon_iend,   &
+                                          mesh%full_lat_ibeg:mesh%full_lat_iend,   &
+                                          mesh%half_lev_ibeg:mesh%half_lev_iend))
+
+  end subroutine debug_print_min_max_lev_edge
+
+  subroutine debug_print_min_max_lon_edge(mesh, array, label)
+
+    type(mesh_type), intent(in) :: mesh
+    real(r8), intent(in) :: array(mesh%half_lon_lb:mesh%half_lon_ub, &
+                                  mesh%full_lat_lb:mesh%full_lat_ub, &
+                                  mesh%full_lev_lb:mesh%full_lev_ub)
+    character(*), intent(in) :: label
+
+    write(6, *) trim(label), minval(array(mesh%half_lon_ibeg:mesh%half_lon_iend,   &
+                                          mesh%full_lat_ibeg:mesh%full_lat_iend,   &
+                                          mesh%full_lev_ibeg:mesh%full_lev_iend)), &
+                             maxval(array(mesh%half_lon_ibeg:mesh%half_lon_iend,   &
+                                          mesh%full_lat_ibeg:mesh%full_lat_iend,   &
+                                          mesh%full_lev_ibeg:mesh%full_lev_iend))
+
+  end subroutine debug_print_min_max_lon_edge
+
+  subroutine debug_print_min_max_lat_edge(mesh, array, label)
+
+    type(mesh_type), intent(in) :: mesh
+    real(r8), intent(in) :: array(mesh%full_lon_lb:mesh%full_lon_ub, &
+                                  mesh%half_lat_lb:mesh%half_lat_ub, &
+                                  mesh%full_lev_lb:mesh%full_lev_ub)
+    character(*), intent(in) :: label
+
+    write(6, *) trim(label), minval(array(mesh%full_lon_ibeg:mesh%full_lon_iend,   &
+                                          mesh%half_lat_ibeg:mesh%half_lat_iend,   &
+                                          mesh%full_lev_ibeg:mesh%full_lev_iend)), &
+                             maxval(array(mesh%full_lon_ibeg:mesh%full_lon_iend,   &
+                                          mesh%half_lat_ibeg:mesh%half_lat_iend,   &
+                                          mesh%full_lev_ibeg:mesh%full_lev_iend))
+
+  end subroutine debug_print_min_max_lat_edge
+
+  logical function debug_is_inf(x) result(res)
+
+    real(r8), intent(in) :: x
+
+    res = .not. ieee_is_finite(x)
+
+  end function debug_is_inf
 
 end module debug_mod

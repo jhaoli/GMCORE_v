@@ -313,7 +313,7 @@ contains
     allocate(full_lev_half_lon_dims(dpv_lat_n,  0:1))
     allocate(full_lev_full_lon_dims(ke       ,  0:0))
 #else
-    if (baroclinic .and. hydrostatic) then
+    if (baroclinic) then
       allocate(full_lev_half_lon_dims(mf_lon_n   , -2:2))
       allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
       allocate(full_lev_full_lon_dims(mf_lat_n   , -2:1))
@@ -342,8 +342,7 @@ contains
       allocate(full_lev_full_lon_dims(t          ,  0:0))
       allocate(full_lev_half_lon_dims(t_lnpop_lon,  0:0))
       allocate(full_lev_half_lon_dims(ak_t_lon   ,  0:0))
-    else if (baroclinic .and. .not. hydrostatic) then
-
+      allocate(half_lev_full_lon_dims(gz_lev     ,  0:0))
     else
       allocate(full_lev_half_lon_dims(mf_lon_n   , -2:2))
       allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
@@ -399,6 +398,7 @@ contains
         call apply_reduce(reduce_args(pt         , reduce_pt         ))
         call apply_reduce(reduce_args(t          , reduce_t          ))
         call apply_reduce(reduce_args(gz         , reduce_gz         ))
+        call apply_reduce(reduce_args(gz_lev     , reduce_gz_lev     ))
         call apply_reduce(reduce_args(mf_lon_n   , reduce_mf_lon_n   ))
         call apply_reduce(reduce_args(mf_lat_n   , reduce_mf_lat_n   ))
         call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
@@ -413,8 +413,8 @@ contains
         call apply_reduce(reduce_args(dpv_lat_n  , reduce_dpv_lat_n  ))
         call apply_reduce(reduce_args(dpv_lat_t  , reduce_dpv_lat_t  ))
         call apply_reduce(reduce_args(dpv_lon_n  , reduce_dpv_lon_n  ))
-        call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_apvm))
-        call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_apvm))
+        call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
+        call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_midpoint))
       end if
         call apply_reduce(reduce_args(ke         , reduce_ke         ))
         call apply_reduce(reduce_args(ptf_lon    , reduce_ptf_lon    ))
@@ -609,6 +609,34 @@ contains
     end if
 
   end subroutine reduce_gz
+
+  subroutine reduce_gz_lev(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
+
+    integer, intent(in) :: j
+    integer, intent(in) :: buf_j
+    integer, intent(in) :: move
+    type(block_type), intent(in) :: block
+    type(mesh_type), intent(in) :: raw_mesh
+    type(state_type), intent(inout) :: raw_state
+    type(reduced_mesh_type), intent(in) :: reduced_mesh
+    type(reduced_static_type), intent(in) :: reduced_static
+    type(reduced_state_type), intent(inout) :: reduced_state
+    real(8), intent(in) :: dt
+
+    integer raw_i, i, k
+
+    if (raw_mesh%is_inside_with_halo_full_lat(j+buf_j)) then
+      raw_i = raw_mesh%full_lon_ibeg + move - 1
+      do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
+        do k = reduced_mesh%half_lev_ibeg, reduced_mesh%half_lev_iend
+          reduced_state%gz_lev(k,i,buf_j,move) = sum(raw_state%gz_lev(raw_i:raw_i+reduced_mesh%reduce_factor-1,j+buf_j,k) * reduced_mesh%weights)
+        end do
+        raw_i = raw_i + reduced_mesh%reduce_factor
+      end do
+      call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%gz_lev(:,:,buf_j,move), west_halo=.false.)
+    end if
+
+  end subroutine reduce_gz_lev
 
   subroutine reduce_m(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
 

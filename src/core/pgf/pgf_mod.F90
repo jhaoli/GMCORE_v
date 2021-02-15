@@ -4,6 +4,7 @@ module pgf_mod
   use namelist_mod
   use pgf_swm_mod
   use pgf_lin97_mod
+  use pgf_sb81_mod
 
   implicit none
 
@@ -40,6 +41,9 @@ contains
     case ('lin97')
       pgf_prepare => pgf_lin97_prepare
       pgf_run => pgf_lin97_run
+    case ('sb81')
+      pgf_prepare => pgf_sb81_prepare
+      pgf_run => pgf_sb81_run
     case default
       if (is_root_proc()) call log_error('Unknown PGF scheme ' // trim(pgf_scheme) // '!')
     end select

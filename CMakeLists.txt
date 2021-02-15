@@ -101,6 +101,7 @@ set(source_files
   src/core/pgf/pgf_mod.F90
   src/core/pgf/pgf_swm_mod.F90
   src/core/pgf/pgf_lin97_mod.F90
+  src/core/pgf/pgf_sb81_mod.F90
   src/core/mesh_mod.F90
   src/core/vert_coord/sigma_coord_mod.F90
   src/core/vert_coord/hybrid_coord_test_mod.F90
