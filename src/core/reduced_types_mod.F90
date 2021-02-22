@@ -89,7 +89,6 @@ module reduced_types_mod
     real(r8), allocatable, dimension(:,:,:,:) :: mf_lon_t
     real(r8), allocatable, dimension(:,:,:,:) :: mf_lat_n
     real(r8), allocatable, dimension(:,:,:,:) :: mf_lat_t
-    real(r8), allocatable, dimension(:,:,:,:) :: vor
     real(r8), allocatable, dimension(:,:,:,:) :: pv
     real(r8), allocatable, dimension(:,:,:,:) :: pv_lon
     real(r8), allocatable, dimension(:,:,:,:) :: pv_lat
@@ -121,11 +120,8 @@ module reduced_types_mod
     real(r8), allocatable, dimension(:,:) :: fu
     real(r8), allocatable, dimension(:,:) :: dmfdlon
     real(r8), allocatable, dimension(:,:) :: pgf_lon
-    real(r8), allocatable, dimension(:,:) :: dpedlon
     real(r8), allocatable, dimension(:,:) :: dkedlon
     real(r8), allocatable, dimension(:,:) :: dptfdlon
-    real(r8), allocatable, dimension(:,:) :: dpdlon
-    real(r8), allocatable, dimension(:,:) :: dvordlon
   contains
     final :: reduced_tend_final
   end type reduced_tend_type
@@ -162,7 +158,6 @@ contains
     if (allocated(this%mf_lon_t   )) deallocate(this%mf_lon_t   )
     if (allocated(this%mf_lat_n   )) deallocate(this%mf_lat_n   )
     if (allocated(this%mf_lat_t   )) deallocate(this%mf_lat_t   )
-    if (allocated(this%vor        )) deallocate(this%vor        )
     if (allocated(this%pv         )) deallocate(this%pv         )
     if (allocated(this%pv_lon     )) deallocate(this%pv_lon     )
     if (allocated(this%pv_lat     )) deallocate(this%pv_lat     )
@@ -194,11 +189,9 @@ contains
     if (allocated(this%fv      )) deallocate(this%fv      )
     if (allocated(this%fu      )) deallocate(this%fu      )
     if (allocated(this%dmfdlon )) deallocate(this%dmfdlon )
-    if (allocated(this%dpedlon )) deallocate(this%dpedlon )
+    if (allocated(this%pgf_lon )) deallocate(this%pgf_lon )
     if (allocated(this%dkedlon )) deallocate(this%dkedlon )
     if (allocated(this%dptfdlon)) deallocate(this%dptfdlon)
-    if (allocated(this%dpdlon  )) deallocate(this%dpdlon  )
-    if (allocated(this%dvordlon)) deallocate(this%dvordlon)
 
   end subroutine reduced_tend_final
 

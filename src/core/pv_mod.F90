@@ -33,20 +33,20 @@ contains
     allocate(upwind_wgt_lat(global_mesh%num_half_lat))
 
     do j = 1, global_mesh%num_full_lat
-      if (abs(global_mesh%full_lat_deg(j)) > 85) then
+      if (abs(global_mesh%full_lat_deg(j)) > 80) then
         upwind_wgt_lon(j) = 1 / upwind_wgt_pv
       else
         upwind_wgt_lon(j) = 1 + (1 / upwind_wgt_pv - 1) * &
-          exp(-0.1 * (abs(global_mesh%full_lat_deg(j)) - 85)**2)
+          exp(-0.1 * (abs(global_mesh%full_lat_deg(j)) - 80)**2)
       end if
     end do
 
     do j = 1, global_mesh%num_half_lat
-      if (abs(global_mesh%half_lat_deg(j)) > 85) then
+      if (abs(global_mesh%half_lat_deg(j)) > 80) then
         upwind_wgt_lat(j) = 1 / upwind_wgt_pv
       else
         upwind_wgt_lat(j) = 1 + (1 / upwind_wgt_pv - 1) * &
-          exp(-0.1 * (abs(global_mesh%half_lat_deg(j)) - 85)**2)
+          exp(-0.1 * (abs(global_mesh%half_lat_deg(j)) - 80)**2)
       end if
     end do
 

@@ -502,7 +502,7 @@ contains
     case (1)
       call interp_pv_midpoint(block, state)
     case (2)
-      call interp_pv_upwind(block, state, upwind_wgt_=upwind_wgt_pv, enhance_pole=.true.)
+      call interp_pv_upwind(block, state, upwind_wgt_=upwind_wgt_pv, enhance_pole=.false.)
     case (3)
       call interp_pv_apvm(block, state, dt)
     case default
