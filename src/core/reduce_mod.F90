@@ -146,7 +146,7 @@ contains
     allocate(reduced_mesh%weights(reduce_factor))
     reduced_mesh%weights = 1.0_r8 / reduce_factor
 
-    reduced_mesh%halo_width    = merge(2, 1, pv_scheme == 2)
+    reduced_mesh%halo_width    = merge(2, 1, pv_scheme == 2 .or. upwind_order_pt > 0)
     reduced_mesh%num_full_lon  = raw_mesh%num_full_lon / reduce_factor
     reduced_mesh%num_half_lon  = raw_mesh%num_half_lon / reduce_factor
     reduced_mesh%full_lon_ibeg = raw_mesh%full_lon_ibeg / reduce_factor + 1
@@ -314,9 +314,7 @@ contains
 #else
     if (baroclinic) then
       allocate(full_lev_half_lon_dims(mf_lon_n   , -2:2))
-      allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
       allocate(full_lev_full_lon_dims(mf_lat_n   , -2:1))
-      allocate(full_lev_full_lon_dims(mf_lat_t   , -1:0))
       allocate(full_lev_full_lon_dims(m          , -2:2))
       allocate(full_lev_half_lon_dims(m_lon      , -2:2))
       allocate(full_lev_full_lon_dims(m_lat      , -2:1))
@@ -325,42 +323,56 @@ contains
       allocate(full_lev_half_lon_dims(pv         , -2:1))
       allocate(full_lev_half_lon_dims(pv_lon     ,  0:0))
       allocate(full_lev_full_lon_dims(pv_lat     , -1:0))
-      allocate(full_lev_half_lon_dims(dpv_lon_n  ,  0:0))
-      allocate(full_lev_half_lon_dims(dpv_lat_t  , -1:0))
-      allocate(full_lev_full_lon_dims(dpv_lon_t  , -1:1))
-      allocate(full_lev_full_lon_dims(dpv_lat_n  , -1:0))
+      select case (pv_scheme)
+      case (2) ! upwind
+        allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
+        allocate(full_lev_full_lon_dims(mf_lat_t   , -1:0))
+      case (3) ! apvm
+        allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
+        allocate(full_lev_full_lon_dims(mf_lat_t   , -1:0))
+        allocate(full_lev_half_lon_dims(dpv_lon_n  ,  0:0))
+        allocate(full_lev_half_lon_dims(dpv_lat_t  , -1:0))
+        allocate(full_lev_full_lon_dims(dpv_lon_t  , -1:1))
+        allocate(full_lev_full_lon_dims(dpv_lat_n  , -1:0))
+      end select
       allocate(full_lev_full_lon_dims(ke         ,  0:0))
-      allocate(full_lev_full_lon_dims(gz         ,  0:0))
       allocate(full_lev_full_lon_dims(pt         ,  0:0))
       allocate(full_lev_half_lon_dims(pt_lon     ,  0:0))
       allocate(full_lev_half_lon_dims(ptf_lon    ,  0:0))
       allocate(full_lev_full_lon_dims(ph         ,  0:0))
       allocate(half_lev_full_lon_dims(ph_lev     ,  0:0))
-      allocate(full_lev_full_lon_dims(ak         ,  0:0))
-      allocate(full_lev_full_lon_dims(t          ,  0:0))
-      allocate(full_lev_half_lon_dims(t_lnpop_lon,  0:0))
-      allocate(full_lev_half_lon_dims(ak_t_lon   ,  0:0))
-      allocate(half_lev_full_lon_dims(gz_lev     ,  0:0))
+      select case (pgf_scheme)
+      case ('sb81')
+        allocate(full_lev_full_lon_dims(ak         ,  0:0))
+        allocate(full_lev_full_lon_dims(t          ,  0:0))
+        allocate(full_lev_half_lon_dims(t_lnpop_lon,  0:0))
+        allocate(full_lev_half_lon_dims(ak_t_lon   ,  0:0))
+        allocate(full_lev_full_lon_dims(gz         ,  0:0))
+      case ('lin97')
+        allocate(half_lev_full_lon_dims(gz_lev     ,  0:0))
+      end select
     else
       allocate(full_lev_half_lon_dims(mf_lon_n   , -2:2))
-      allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
       allocate(full_lev_full_lon_dims(mf_lat_n   , -2:1))
-      allocate(full_lev_full_lon_dims(mf_lat_t   , -1:0))
       allocate(full_lev_full_lon_dims(gz         , -2:2))
       allocate(full_lev_full_lon_dims(m          , -2:2))
       allocate(full_lev_half_lon_dims(m_lon      , -2:2))
       allocate(full_lev_full_lon_dims(m_lat      , -2:1))
+      allocate(full_lev_full_lon_dims(ke         ,  0:0))
       ! Potential vorticity
       allocate(full_lev_half_lon_dims(u          , -2:2))
       allocate(full_lev_full_lon_dims(v          , -2:1))
       allocate(full_lev_half_lon_dims(pv         , -2:1))
       allocate(full_lev_half_lon_dims(pv_lon     ,  0:0))
       allocate(full_lev_full_lon_dims(pv_lat     , -1:0))
-      allocate(full_lev_half_lon_dims(dpv_lon_n  ,  0:0))
-      allocate(full_lev_half_lon_dims(dpv_lat_t  , -1:0))
-      allocate(full_lev_full_lon_dims(dpv_lon_t  , -1:1))
-      allocate(full_lev_full_lon_dims(dpv_lat_n  , -1:0))
-      allocate(full_lev_full_lon_dims(ke         ,  0:0))
+      if (pv_scheme == 2) then ! upwind
+        allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
+        allocate(full_lev_full_lon_dims(mf_lat_t   , -1:0))
+        allocate(full_lev_half_lon_dims(dpv_lon_n  ,  0:0))
+        allocate(full_lev_half_lon_dims(dpv_lat_t  , -1:0))
+        allocate(full_lev_full_lon_dims(dpv_lon_t  , -1:1))
+        allocate(full_lev_full_lon_dims(dpv_lat_n  , -1:0))
+      end if
     end if
 #endif
     allocate(reduced_state%async(11,-2:2,reduced_mesh%reduce_factor))
@@ -1424,27 +1436,57 @@ contains
     type(reduced_static_type), intent(in) :: reduced_static
     type(reduced_state_type), intent(inout) :: reduced_state
     real(r8), intent(in) :: dt
-
+    real(r8), parameter :: c11 =  0.5_r8
+    real(r8), parameter :: c12 = -0.5_r8
+    real(r8), parameter :: c31 =  7.0_r8 / 12.0_r8
+    real(r8), parameter :: c32 = -1.0_r8 / 12.0_r8
+    real(r8), parameter :: c33 =  1.0_r8 / 12.0_r8
+  
     integer raw_i, i, k
 
     if (reduced_mesh%area_lon(buf_j) == 0) return
+    associate (mesh     => reduced_mesh           , &
+               pt       => reduced_state%pt       , &
+               mf_lon_n => reduced_state%mf_lon_n , &
+               pt_lon   => reduced_state%pt_lon   , &
+               ptf_lon  => reduced_state%ptf_lon)
+
+    ! Upwind-biased interpolation
+    if (upwind_order_pt == 1) then
+      do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+          pt_lon(k,i,buf_j,move) = c11 * (pt(k,i+1,buf_j,move) + pt(k,i,buf_j,move)) + &
+                                   c12 * (pt(k,i+1,buf_j,move) - pt(k,i,buf_j,move)) * &
+                         upwind_wgt_pt * sign(1.0_r8, mf_lon_n(k,i,buf_j,move))
+        end do
+      end do
+    else if (upwind_order_pt == 3) then
+      do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+          pt_lon(k,i,buf_j,move) = c31 * (pt(k,i+1,buf_j,move) + pt(k,i  ,buf_j,move))  + &
+                                   c32 * (pt(k,i+2,buf_j,move) + pt(k,i-1,buf_j,move))  + &
+                                   c33 * (pt(k,i+2,buf_j,move) - pt(k,i-1,buf_j,move)   - &
+                                3.0_r8 * (pt(k,i+1,buf_j,move) - pt(k,i  ,buf_j,move))) * &
+                         upwind_wgt_pt * sign(1.0_r8, mf_lon_n(k,i,buf_j,move))
+        end do
+      end do
+    else
+      do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+          pt_lon(k,i,buf_j,move) = (mesh%area_lon_east(buf_j) * pt(k,i  ,buf_j,move) + &
+                                    mesh%area_lon_west(buf_j) * pt(k,i+1,buf_j,move)   &
+                                   ) / mesh%area_lon(buf_j)
+        end do
+      end do
+    end if
 
     do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
       do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
-        reduced_state%pt_lon(k,i,buf_j,move) = (                                   &
-          reduced_mesh%area_lon_east(buf_j) * reduced_state%pt(k,i  ,buf_j,move) + &
-          reduced_mesh%area_lon_west(buf_j) * reduced_state%pt(k,i+1,buf_j,move)   &
-        ) / reduced_mesh%area_lon(buf_j)
+        ptf_lon(k,i,buf_j,move) = mf_lon_n(k,i,buf_j,move) * pt_lon  (k,i,buf_j,move)
       end do
     end do
-        
-    do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
-      do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
-        reduced_state%ptf_lon(k,i,buf_j,move) = reduced_state%mf_lon_n(k,i,buf_j,move) * &
-                                                reduced_state%pt_lon  (k,i,buf_j,move)
-      end do
-    end do
-    call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%ptf_lon(:,:,buf_j,move), east_halo=.false.)
+      call fill_zonal_halo(block, mesh%halo_width, ptf_lon(:,:,buf_j,move), east_halo=.false.)
+    end associate
 
   end subroutine reduce_ptf_lon
 
