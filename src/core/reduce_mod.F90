@@ -351,7 +351,7 @@ contains
       case ('lin97')
         allocate(half_lev_full_lon_dims(gz_lev     ,  0:0))
       end select
-    else
+    else ! barotropic
       allocate(full_lev_half_lon_dims(mf_lon_n   , -2:2))
       allocate(full_lev_full_lon_dims(mf_lat_n   , -2:1))
       allocate(full_lev_full_lon_dims(gz         , -2:2))
@@ -365,14 +365,18 @@ contains
       allocate(full_lev_half_lon_dims(pv         , -2:1))
       allocate(full_lev_half_lon_dims(pv_lon     ,  0:0))
       allocate(full_lev_full_lon_dims(pv_lat     , -1:0))
-      if (pv_scheme == 2) then ! upwind
+      select case (pv_scheme) 
+      case (2) ! upwind
+        allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
+        allocate(full_lev_full_lon_dims(mf_lat_t   , -1:0))
+      case (3) ! APVM
         allocate(full_lev_half_lon_dims(mf_lon_t   ,  0:0))
         allocate(full_lev_full_lon_dims(mf_lat_t   , -1:0))
         allocate(full_lev_half_lon_dims(dpv_lon_n  ,  0:0))
         allocate(full_lev_half_lon_dims(dpv_lat_t  , -1:0))
         allocate(full_lev_full_lon_dims(dpv_lon_t  , -1:1))
         allocate(full_lev_full_lon_dims(dpv_lat_n  , -1:0))
-      end if
+      end select
     end if
 #endif
     allocate(reduced_state%async(11,-2:2,reduced_mesh%reduce_factor))
@@ -424,14 +428,14 @@ contains
           call apply_reduce(reduce_args(gz_lev     , reduce_gz_lev     ))
         end select
         ! Potential vorticity
-        call apply_reduce(reduce_args(pv         , reduce_pv         ))
+        call apply_reduce(reduce_args(pv           , reduce_pv         ))
         select case (pv_scheme)
         case (1) !midpoint
           call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
           call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_midpoint))
         case (2) !upwind
-          call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
-          call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
+          call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t     ))
+          call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t     ))
           call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_upwind))
           call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_upwind))
         case (3) ! apvm
@@ -719,7 +723,7 @@ contains
         raw_i = raw_mesh%half_lon_ibeg + move - 1
         do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
           do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
-            reduced_state%pv (k,i,buf_j,move) = sum(raw_state%pv (raw_i:raw_i+reduced_mesh%reduce_factor-1,j+buf_j,k) * reduced_mesh%weights)
+            reduced_state%pv(k,i,buf_j,move) = sum(raw_state%pv(raw_i:raw_i+reduced_mesh%reduce_factor-1,j+buf_j,k) * reduced_mesh%weights)
           end do
           raw_i = raw_i + reduced_mesh%reduce_factor
         end do

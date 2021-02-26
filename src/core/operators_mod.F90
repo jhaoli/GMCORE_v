@@ -55,8 +55,7 @@ contains
       end if 
       call diag_m                   (blocks(iblk), blocks(iblk)%state(itime))
       call interp_m_vtx             (blocks(iblk), blocks(iblk)%state(itime))
-      call calc_mf_lon_n_mf_lat_n   (blocks(iblk), blocks(iblk)%state(itime))
-      call calc_mf_lon_t_mf_lat_t   (blocks(iblk), blocks(iblk)%state(itime))
+      call calc_mf                  (blocks(iblk), blocks(iblk)%state(itime))
       call diag_pv                  (blocks(iblk), blocks(iblk)%state(itime))
       call interp_pv                (blocks(iblk), blocks(iblk)%state(itime), dt)
       call calc_ke                  (blocks(iblk), blocks(iblk)%state(itime))
@@ -83,8 +82,7 @@ contains
       call diag_t                   (block, state)
     end if
     call diag_m                   (block, state)
-    call calc_mf_lon_n_mf_lat_n   (block, state)
-    call calc_mf_lon_t_mf_lat_t   (block, state)
+    call calc_mf                  (block, state)
     call calc_ke                  (block, state)
     if (baroclinic) then
       call diag_gz_lev              (block, state)
@@ -422,7 +420,7 @@ contains
 
   end subroutine interp_m_vtx
 
-  subroutine calc_mf_lon_n_mf_lat_n(block, state)
+  subroutine calc_mf(block, state)
 
     type(block_type), intent(in) :: block
     type(state_type), intent(inout) :: state
@@ -449,18 +447,6 @@ contains
       end do
     end do
     call fill_halo(block, state%mf_lat_n, full_lon=.true., full_lat=.false., full_lev=.true.)
-
-  end subroutine calc_mf_lon_n_mf_lat_n
-
-  subroutine calc_mf_lon_t_mf_lat_t(block, state)
-
-    type(block_type), intent(in) :: block
-    type(state_type), intent(inout) :: state
-
-    type(mesh_type), pointer :: mesh
-    integer i, j, k
-
-    mesh => state%mesh
 
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
       do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
@@ -490,7 +476,7 @@ contains
       end do
     end do
 
-  end subroutine calc_mf_lon_t_mf_lat_t
+  end subroutine calc_mf
 
   subroutine interp_pv(block, state, dt)
     

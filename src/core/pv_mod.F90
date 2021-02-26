@@ -323,8 +323,6 @@ contains
       if (enhance_pole) then
         beta_lon = beta_lon * upwind_wgt_lon(mesh%full_lat_ibeg:mesh%full_lat_iend)
         beta_lat = beta_lat * upwind_wgt_lat(mesh%half_lat_ibeg:mesh%half_lat_iend)
-!          beta_lon = 4.0_r8 / pi**2 * mesh%full_lat(mesh%full_lat_ibeg:mesh%full_lat_iend)**2
-!          beta_lat = 4.0_r8 / pi**2 * mesh%half_lat(mesh%half_lat_ibeg:mesh%half_lat_iend)**2
       end if
     end if
 

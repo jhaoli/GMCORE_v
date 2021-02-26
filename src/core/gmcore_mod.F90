@@ -58,7 +58,7 @@ contains
     real(r8) seconds
 
     call log_init()
-    call global_mesh%init_global(num_lon, num_lat, num_lev, lon_halo_width=max(2, maxval(reduce_factors) - 1), lat_halo_width=2)
+    call global_mesh%init_global(num_lon, num_lat, num_lev, lon_halo_width=max(2, maxval(reduce_factors) - 1), lat_halo_width=3)
     !call debug_check_areas()
     call process_init()
     call vert_coord_init(num_lev, namelist_path)
@@ -113,6 +113,8 @@ contains
     end select
 
     call time_add_alert('print', seconds=seconds)
+    
+    if (is_root_proc()) call print_namelist()
 
   end subroutine gmcore_init
 
@@ -390,7 +392,7 @@ contains
 
       call test_forcing_run(blocks(iblk), dt, blocks(iblk)%state(new))
 
-      if (use_div_damp .or. use_polar_damp) then
+      if (use_div_damp .or. use_vor_damp .or. use_polar_damp) then
         call operators_prepare(blocks(iblk), blocks(iblk)%state(new), dt, all_pass)
       end if
     end do

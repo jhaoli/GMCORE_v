@@ -366,6 +366,8 @@ contains
       call fiona_output('h1', 'dptfdlon', tend%dptfdlon(is:ie,js:je,ks:ke), start=start, count=count)
       call fiona_output('h1', 'dptfdlat', tend%dptfdlat(is:ie,js:je,ks:ke), start=start, count=count)
       call fiona_output('h1', 'dptfdlev', tend%dptfdlev(is:ie,js:je,ks:ke), start=start, count=count)
+    else
+      call fiona_output('h1', 'dgzdt'   , tend%dgz     (is:ie,js:je,ks:ke), start=start, count=count)
     end if
 
     is = mesh%half_lon_ibeg; ie = mesh%half_lon_iend
@@ -380,6 +382,7 @@ contains
     call fiona_output('h1', 'dudt   ' , tend%du       (is:ie,js:je,ks:ke), start=start, count=count)
     call fiona_output('h1', 'mf_lon_n', state%mf_lon_n(is:ie,js:je,ks:ke), start=start, count=count)
     call fiona_output('h1', 'mf_lon_t', state%mf_lon_t(is:ie,js:je,ks:ke), start=start, count=count)
+    call fiona_output('h1', 'm_lon   ', state%m_lon   (is:ie,js:je,ks:ke), start=start, count=count)
 
     if (baroclinic) then
       call fiona_output('h1', 'wedudlev', tend%wedudlev(is:ie,js:je,ks:ke), start=start, count=count)
@@ -397,6 +400,7 @@ contains
     call fiona_output('h1', 'dvdt'    , tend%dv       (is:ie,js:je,ks:ke), start=start, count=count)
     call fiona_output('h1', 'mf_lat_n', state%mf_lat_n(is:ie,js:je,ks:ke), start=start, count=count)
     call fiona_output('h1', 'mf_lat_t', state%mf_lat_t(is:ie,js:je,ks:ke), start=start, count=count)
+    call fiona_output('h1', 'm_lat   ', state%m_lat   (is:ie,js:je,ks:ke), start=start, count=count)
 
     if (baroclinic) then
       call fiona_output('h1', 'wedvdlev', tend%wedvdlev(is:ie,js:je,ks:ke), start=start, count=count)
