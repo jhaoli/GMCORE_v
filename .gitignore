@@ -35,7 +35,6 @@
 
 build*
 run
-test*
 __pycache__
 *.nc
 *.png
