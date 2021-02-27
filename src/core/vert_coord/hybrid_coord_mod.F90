@@ -84,7 +84,7 @@ contains
     end if
 
     if (is_root_proc()) then
-      call log_notice('Model top pressure is ' // to_string(ptop, 2) // 'Pa.')
+      call log_notice('Model top pressure is ' // to_str(ptop, 2) // 'Pa.')
     end if
 
     if (baroclinic .and. all(hyai == 0) .and. is_root_proc()) then

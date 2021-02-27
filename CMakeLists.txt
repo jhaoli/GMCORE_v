@@ -88,6 +88,7 @@ set(source_files
   src/utils/time_mod.F90
   src/utils/math_mod.F90
   src/utils/history_mod.F90
+  src/utils/initial_mod.F90
   src/utils/restart_mod.F90
   src/utils/time_mod.F90
   src/utils/sphere_geometry_mod.F90
@@ -119,9 +120,9 @@ set(source_files
   ${CMAKE_CURRENT_BINARY_DIR}/reduce_mod.F90
   src/core/nest_mod.F90
   src/core/damp/zonal_damp_mod.F90
-  src/core/damp/meridional_damp_mod.F90
   src/core/damp/div_damp_mod.F90
   src/core/damp/vor_damp_mod.F90
+  src/core/damp/smag_damp_mod.F90
   src/core/damp/damp_mod.F90
   src/core/gmcore_mod.F90
   src/physics/test_forcing_mod.F90
@@ -143,8 +144,22 @@ set(source_files
 add_library(gmcore ${source_files})
 target_link_libraries(gmcore netcdff fortran_container fortran_datetime fiona flogger ${MPI_Fortran_LIBRARIES})
 
+set(gmcore_prepare_files
+  src/prepare/topo_mod.F90
+  src/prepare/latlon_interp_mod.F90
+  src/prepare/vert_interp_mod.F90
+  src/prepare/era5_reader_mod.F90
+  src/prepare/mpas_reader_mod.F90
+  src/prepare/bkg_mod.F90
+  src/prepare/gmcore_prepare.F90
+)
+
+add_executable(gmcore_prepare.exe ${gmcore_prepare_files})
+target_link_libraries(gmcore_prepare.exe gmcore)
+
 add_executable(gmcore_swm_driver.exe src/drivers/gmcore_swm_driver.F90)
 target_link_libraries(gmcore_swm_driver.exe gmcore)
 
 add_executable(gmcore_driver.exe src/drivers/gmcore_driver.F90)
 target_link_libraries(gmcore_driver.exe gmcore)
+

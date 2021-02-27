@@ -237,6 +237,7 @@ contains
     type(state_type), intent(inout) :: state
 
     type(mesh_type), pointer :: mesh
+    real(r8) work(state%mesh%full_lon_ibeg:state%mesh%full_lon_iend,state%mesh%num_full_lev)
     real(r8) pole(global_mesh%num_full_lev)
     integer i, j, k
 
@@ -265,10 +266,10 @@ contains
       pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-          pole(k) = pole(k) + state%v(i,j,k)
+          work(i,k) = state%v(i,j,k)
         end do
       end do
-      call zonal_sum(proc%zonal_comm, pole)
+      call zonal_sum(proc%zonal_circle, work, pole)
       pole = pole * mesh%le_lat(j) / global_mesh%num_full_lon / mesh%area_cell(j)
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
@@ -281,10 +282,10 @@ contains
       pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-          pole(k) = pole(k) - state%v(i,j-1,k)
+          work(i,k) = - state%v(i,j-1,k)
         end do
       end do
-      call zonal_sum(proc%zonal_comm, pole)
+      call zonal_sum(proc%zonal_circle, work, pole)
       pole = pole * mesh%le_lat(j-1) / global_mesh%num_full_lon / mesh%area_cell(j)
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
@@ -488,7 +489,7 @@ contains
     case (1)
       call interp_pv_midpoint(block, state)
     case (2)
-      call interp_pv_upwind(block, state, upwind_wgt_=upwind_wgt_pv, enhance_pole=.false.)
+        call interp_pv_upwind(block, state, upwind_wgt_=upwind_wgt_pv, enhance_pole=.false.)
     case (3)
       call interp_pv_apvm(block, state, dt)
     case default
@@ -823,6 +824,7 @@ contains
 
     type(mesh_type), pointer :: mesh
     integer i, j, k, move
+    real(r8) work(state%mesh%full_lon_ibeg:state%mesh%full_lon_iend,state%mesh%num_full_lev)
     real(r8) pole(state%mesh%num_full_lev)
 
     mesh => state%mesh
@@ -874,10 +876,10 @@ contains
       pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-          pole(k) = pole(k) + state%mf_lat_n(i,j,k)
+          work(i,k) = state%mf_lat_n(i,j,k)
         end do
       end do
-      call zonal_sum(proc%zonal_comm, pole)
+      call zonal_sum(proc%zonal_circle, work, pole)
       pole = pole * mesh%le_lat(j) / global_mesh%num_full_lon / mesh%area_cell(j)
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
@@ -890,10 +892,10 @@ contains
       pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-          pole(k) = pole(k) - state%mf_lat_n(i,j-1,k)
+          work(i,k) = - state%mf_lat_n(i,j-1,k)
         end do
       end do
-      call zonal_sum(proc%zonal_comm, pole)
+      call zonal_sum(proc%zonal_circle, work, pole)
       pole = pole * mesh%le_lat(j-1) / global_mesh%num_full_lon / mesh%area_cell(j)
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
@@ -914,6 +916,7 @@ contains
 
     type(mesh_type), pointer :: mesh
     integer i, j, k, move
+		real(r8) work(state%mesh%full_lon_ibeg:state%mesh%full_lon_iend,state%mesh%num_full_lev)
     real(r8) pole(state%mesh%num_full_lev)
 
     mesh => state%mesh
@@ -967,10 +970,10 @@ contains
       pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-          pole(k) = pole(k) + state%mf_lat_n(i,j,k) * state%pt_lat(i,j,k)
+          work(i,k) = state%mf_lat_n(i,j,k) * state%pt_lat(i,j,k)
         end do
       end do
-      call zonal_sum(proc%zonal_comm, pole)
+      call zonal_sum(proc%zonal_circle, work, pole)
       pole = pole * mesh%le_lat(j) / global_mesh%num_full_lon / mesh%area_cell(j)
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
@@ -983,10 +986,10 @@ contains
       pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-          pole(k) = pole(k) - state%mf_lat_n(i,j-1,k) * state%pt_lat(i,j-1,k)
+          work(i,k) = - state%mf_lat_n(i,j-1,k) * state%pt_lat(i,j-1,k)
         end do
       end do
-      call zonal_sum(proc%zonal_comm, pole)
+      call zonal_sum(proc%zonal_circle, work, pole)
       pole = pole * mesh%le_lat(j-1) / global_mesh%num_full_lon / mesh%area_cell(j)
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend

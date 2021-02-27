@@ -158,26 +158,14 @@ contains
       if (time_step == 0) call cpu_time(time1)
       call cpu_time(time2)
       if (time_step /= 0) then
-        if (is_root_proc()) call log_notice('Time cost ' // to_string(time2 - time1, 5) // ' seconds.')
+        if (is_root_proc()) call log_notice('Time cost ' // to_str(time2 - time1, 5) // ' seconds.')
         time1 = time2
-      end if
-      if (baroclinic) then
-        ! Interpolate onto isobaric layers.
-        do iblk = 1, size(blocks)
-          state => blocks(iblk)%state(itime)
-          call interp_lon_edge_to_isobaric_level(state%mesh, state%ph, state%u, 85000.0_r8, state%u850, logp=.true.)
-          call interp_lon_edge_to_isobaric_level(state%mesh, state%ph, state%u, 70000.0_r8, state%u700, logp=.true.)
-          call interp_lat_edge_to_isobaric_level(state%mesh, state%ph, state%v, 85000.0_r8, state%v850, logp=.true.)
-          call interp_lat_edge_to_isobaric_level(state%mesh, state%ph, state%v, 70000.0_r8, state%v700, logp=.true.)
-          call interp_cell_to_isobaric_level(state%mesh, state%ph, state%t, 85000.0_r8, state%t850, logp=.true.)
-          call interp_cell_to_isobaric_level(state%mesh, state%ph, state%t, 70000.0_r8, state%t700, logp=.true.)
-        end do
       end if
       call history_write_state(blocks, itime)
       if (output_debug) call history_write_debug(blocks, itime)
     end if
     if (time_is_alerted('restart_write')) then
-      call restart_write(blocks, itime)
+      call restart_write(itime)
     end if
 
   end subroutine output
@@ -388,6 +376,9 @@ contains
       end if
       if (use_polar_damp) then
         call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
+      end if
+      if (use_smag_damp) then
+        call smag_damp_run(blocks(iblk), dt, blocks(iblk)%state(new))
       end if
 
       call test_forcing_run(blocks(iblk), dt, blocks(iblk)%state(new))

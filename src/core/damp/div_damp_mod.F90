@@ -64,7 +64,7 @@ contains
         end do
       end do
     case default
-      call log_error('Unsupported div_damp_order ' // trim(to_string(div_damp_order)) // '!')
+      call log_error('Unsupported div_damp_order ' // trim(to_str(div_damp_order)) // '!')
     end select
 
   end subroutine div_damp_init

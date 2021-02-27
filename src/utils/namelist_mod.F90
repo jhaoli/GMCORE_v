@@ -191,52 +191,52 @@ contains
   subroutine print_namelist()
 
       write(*, *) '=================== GMCORE Parameters ==================='
-      write(*, *) 'num_lon             = ', to_string(num_lon)
-      write(*, *) 'num_lat             = ', to_string(num_lat)
-      write(*, *) 'num_lev             = ', to_string(num_lev)
+      write(*, *) 'num_lon             = ', to_str(num_lon)
+      write(*, *) 'num_lat             = ', to_str(num_lat)
+      write(*, *) 'num_lev             = ', to_str(num_lev)
     if (coarse_pole_mul /= 0) then
-      write(*, *) 'coarse_pole_mul     = ', to_string(coarse_pole_mul, 3)
-      write(*, *) 'coarse_pole_decay   = ', to_string(coarse_pole_decay, 3)
+      write(*, *) 'coarse_pole_mul     = ', to_str(coarse_pole_mul, 3)
+      write(*, *) 'coarse_pole_decay   = ', to_str(coarse_pole_decay, 3)
     end if
-      write(*, *) 'hydrostatic         = ', to_string(hydrostatic)
-      write(*, *) 'nonhydrostatic      = ', to_string(nonhydrostatic)
+      write(*, *) 'hydrostatic         = ', to_str(hydrostatic)
+      write(*, *) 'nonhydrostatic      = ', to_str(nonhydrostatic)
       write(*, *) 'vert_coord_scheme   = ', trim(vert_coord_scheme)
       write(*, *) 'vert_coord_template = ', trim(vert_coord_template)
-      write(*, *) 'ptop                = ', to_string(ptop, 2)
-      write(*, *) 'dt_in_seconds       = ', to_string(int(dt_in_seconds))
+      write(*, *) 'ptop                = ', to_str(ptop, 2)
+      write(*, *) 'dt_in_seconds       = ', to_str(int(dt_in_seconds))
       write(*, *) 'pgf_scheme          = ', trim(pgf_scheme)
-      write(*, *) 'ke_scheme           = ', to_string(ke_scheme)
+      write(*, *) 'ke_scheme           = ', to_str(ke_scheme)
     if (ke_scheme == 2) then
-      write(*, *) 'ke_cell_wgt         = ', to_string(ke_cell_wgt, 2)
+      write(*, *) 'ke_cell_wgt         = ', to_str(ke_cell_wgt, 2)
     end if
-      write(*, *) 'pv_scheme           = ', to_string(pv_scheme)
-      write(*, *) 'pv_pole_stokes      = ', to_string(pv_pole_stokes)
+      write(*, *) 'pv_scheme           = ', to_str(pv_scheme)
+      write(*, *) 'pv_pole_stokes      = ', to_str(pv_pole_stokes)
       write(*, *) 'time_scheme         = ', trim(time_scheme)
     if (upwind_order_pt > 0) then
-      write(*, *) 'upwind_order_pt     = ', to_string(upwind_order_pt)
-      write(*, *) 'upwind_wgt_pt       = ', to_string(upwind_wgt_pt, 2)
+      write(*, *) 'upwind_order_pt     = ', to_str(upwind_order_pt)
+      write(*, *) 'upwind_wgt_pt       = ', to_str(upwind_wgt_pt, 2)
     end if
     if (pv_scheme > 1) then
-      write(*, *) 'upwind_order_pv     = ', to_string(upwind_order_pv)
-      write(*, *) 'upwind_wgt_pv       = ', to_string(upwind_wgt_pv, 2)
+      write(*, *) 'upwind_order_pv     = ', to_str(upwind_order_pv)
+      write(*, *) 'upwind_wgt_pv       = ', to_str(upwind_wgt_pv, 2)
     end if
-      write(*, *) 'reduce_pv_directly  = ', to_string(reduce_pv_directly)
-      write(*, *) 'do_reduce_ke        = ', to_string(do_reduce_ke)
-      write(*, *) 'use_div_damp        = ', to_string(use_div_damp)
+      write(*, *) 'reduce_pv_directly  = ', to_str(reduce_pv_directly)
+      write(*, *) 'do_reduce_ke        = ', to_str(do_reduce_ke)
+      write(*, *) 'use_div_damp        = ', to_str(use_div_damp)
     if (use_div_damp) then
-      write(*, *) 'div_damp_coef2      = ', to_string(div_damp_coef2, 3)
+      write(*, *) 'div_damp_coef2      = ', to_str(div_damp_coef2, 3)
     end if
-      write(*, *) 'use_vor_damp        = ', to_string(use_vor_damp)
+      write(*, *) 'use_vor_damp        = ', to_str(use_vor_damp)
     if (use_vor_damp) then
-      write(*, *) 'vor_damp_lat0       = ', to_string(vor_damp_lat0, 1)
-      write(*, *) 'vor_damp_decay      = ', to_string(vor_damp_decay, 1)
-      write(*, *) 'vor_damp_coef2      = ', to_string(vor_damp_coef2, 3)
+      write(*, *) 'vor_damp_lat0       = ', to_str(vor_damp_lat0, 1)
+      write(*, *) 'vor_damp_decay      = ', to_str(vor_damp_decay, 1)
+      write(*, *) 'vor_damp_coef2      = ', to_str(vor_damp_coef2, 3)
     end if
-      write(*, *) 'use_polar_damp      = ', to_string(use_polar_damp)
-      write(*, *) 'use_rayleigh_damp   = ', to_string(use_rayleigh_damp)
-      write(*, *) 'use_smag_damp       = ', to_string(use_smag_damp)
+      write(*, *) 'use_polar_damp      = ', to_str(use_polar_damp)
+      write(*, *) 'use_rayleigh_damp   = ', to_str(use_rayleigh_damp)
+      write(*, *) 'use_smag_damp       = ', to_str(use_smag_damp)
     if (use_smag_damp) then
-      write(*, *) 'smag_damp_coef      = ', to_string(smag_damp_coef, 1)
+      write(*, *) 'smag_damp_coef      = ', to_str(smag_damp_coef, 1)
     end if
       write(*, *) '========================================================='
 

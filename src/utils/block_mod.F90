@@ -1,6 +1,7 @@
 module block_mod
 
   use mpi
+  use flogger
   use namelist_mod
   use mesh_mod
   use state_mod
@@ -46,16 +47,6 @@ module block_mod
     type(reduced_static_type), allocatable :: reduced_static(:)
     type(reduced_tend_type), allocatable :: reduced_tend(:)
     type(halo_type), allocatable :: halo(:)
-    ! Work arrays
-    real(r8), allocatable :: meridional_damp_lon_gy   (:,:,:)
-    real(r8), allocatable :: meridional_damp_lat_gy   (:,:,:)
-    real(r8), allocatable :: meridional_damp_cell_gy  (:,:,:)
-    real(r8), allocatable :: meridional_damp_vtx_gy   (:,:,:)
-    real(r8), allocatable :: meridional_damp_lon_ly   (:,:,:)
-    real(r8), allocatable :: meridional_damp_lat_ly   (:,:,:)
-    real(r8), allocatable :: meridional_damp_cell_ly  (:,:,:)
-    real(r8), allocatable :: meridional_damp_vtx_ly   (:,:,:)
-
   contains
     procedure :: init => block_init
     final :: block_final
@@ -82,32 +73,31 @@ contains
 
     if (.not. allocated(this%state)) then
       select case (trim(time_scheme))
-      case ('debug', 'pc2', 'pc2+fb', 'rk2')
+      case ('euler')
+        allocate(this%state(2))
+        allocate(this%tend (2))
+      case ('pc2', 'wrfrk3')
         allocate(this%state(3))
         allocate(this%tend (3))
-      case ('rk3')
+      case ('rk3', 'ssprk3')
         allocate(this%state(4))
         allocate(this%tend (4))
       case ('rk4')
         allocate(this%state(5))
         allocate(this%tend (5))
+      case ('N/A')
+        allocate(this%state(1))
+      case default
+        if (id == 0) call log_error('Unknown time scheme ' // trim(time_scheme))
       end select
       do i = 1, size(this%state)
         call this%state(i)%init(this%mesh)
-        call this%tend (i)%init(this%mesh)
+      end do
+      do i = 1, size(this%tend)
+        call this%tend(i)%init(this%mesh)
       end do
       call this%static%init(this%mesh)
     end if
-
-    ! Allocate working arrays.
-    call allocate_array(this%mesh, this%meridional_damp_lon_gy   , half_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%meridional_damp_lat_gy   , full_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%meridional_damp_cell_gy  , full_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%meridional_damp_vtx_gy   , half_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%meridional_damp_lon_ly   , half_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%meridional_damp_lat_ly   , full_lon=.true., half_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%meridional_damp_cell_ly  , full_lon=.true., full_lat=.true., full_lev=.true.)
-    call allocate_array(this%mesh, this%meridional_damp_vtx_ly   , half_lon=.true., half_lat=.true., full_lev=.true.)
 
   end subroutine block_init
 
@@ -122,16 +112,6 @@ contains
     if (allocated(this%reduced_state )) deallocate(this%reduced_state )
     if (allocated(this%reduced_static)) deallocate(this%reduced_static)
     if (allocated(this%reduced_tend  )) deallocate(this%reduced_tend  )
-
-    if (allocated(this%meridional_damp_lon_gy   )) deallocate(this%meridional_damp_lon_gy   )
-    if (allocated(this%meridional_damp_lat_gy   )) deallocate(this%meridional_damp_lat_gy   )
-    if (allocated(this%meridional_damp_cell_gy  )) deallocate(this%meridional_damp_cell_gy  )
-    if (allocated(this%meridional_damp_vtx_gy   )) deallocate(this%meridional_damp_vtx_gy   )
-    
-    if (allocated(this%meridional_damp_lon_ly   )) deallocate(this%meridional_damp_lon_ly   )
-    if (allocated(this%meridional_damp_lat_ly   )) deallocate(this%meridional_damp_lat_ly   )
-    if (allocated(this%meridional_damp_cell_ly  )) deallocate(this%meridional_damp_cell_ly  )
-    if (allocated(this%meridional_damp_vtx_ly   )) deallocate(this%meridional_damp_vtx_ly   )
 
   end subroutine block_final
 

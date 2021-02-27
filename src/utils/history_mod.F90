@@ -23,10 +23,6 @@ module history_mod
   public history_write_state
   public history_write_debug
 
- ! A-grid variables
-  real(r8), allocatable, dimension(:,:,:) :: ua
-  real(r8), allocatable, dimension(:,:,:) :: va
-
 contains
 
   subroutine history_init()
@@ -84,19 +80,11 @@ contains
       call fiona_add_dim('h0', 'lev'  , size=global_mesh%num_full_lev, add_var=.true., decomp=.false.)
       call fiona_add_dim('h0', 'ilev' , size=global_mesh%num_half_lev, add_var=.true., decomp=.false.)
       call fiona_add_var('h0', 't'    , long_name='temperature'                 , units='K'      , dim_names=cell_dims)
-      call fiona_add_var('h0', 't850' , long_name='temperature on 850hPa'       , units='K'      , dim_names=cell_dims_2d)
-      call fiona_add_var('h0', 't700' , long_name='temperature on 700hPa'       , units='K'      , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'pt'   , long_name='potential temperature'       , units='K'      , dim_names=cell_dims)
       call fiona_add_var('h0', 'phs'  , long_name='surface hydrostatic pressure', units='Pa'     , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'ph'   , long_name='hydrostatic pressure'        , units='Pa'     , dim_names=cell_dims)
       call fiona_add_var('h0', 'u'    , long_name='u wind component'            , units='m s-1'  , dim_names=lon_dims)
-      call fiona_add_var('h0', 'u850' , long_name='u wind component on 850hPa'  , units='m s-1'  , dim_names=lon_dims_2d)
-      call fiona_add_var('h0', 'u700' , long_name='u wind component on 700hPa'  , units='m s-1'  , dim_names=lon_dims_2d)
-      call fiona_add_var('h0', 'ua'   , long_name='u wind component on A grid'  , units='m s-1'  , dim_names=cell_dims)
       call fiona_add_var('h0', 'v'    , long_name='v wind component'            , units='m s-1'  , dim_names=lat_dims)
-      call fiona_add_var('h0', 'v850' , long_name='v wind component on 850hPa'  , units='m s-1'  , dim_names=lat_dims_2d)
-      call fiona_add_var('h0', 'v700' , long_name='v wind component on 700hPa'  , units='m s-1'  , dim_names=lat_dims_2d)
-      call fiona_add_var('h0', 'va'   , long_name='v wind component on A grid'  , units='m s-1'  , dim_names=cell_dims)
       call fiona_add_var('h0', 'z'    , long_name='height on half levels'       , units='m'      , dim_names=cell_lev_dims)
       call fiona_add_var('h0', 'zs'   , long_name='surface height'              , units='m'      , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'pv'   , long_name='potential vorticity'         , units='m-1 s-1', dim_names=vtx_dims)
@@ -109,9 +97,7 @@ contains
       call fiona_add_var('h0', 'tpv'  , long_name='total potential vorticity'   , units='m2 s-5' , dim_names=['time'], data_type='real(8)')
     else
       call fiona_add_var('h0', 'u'    , long_name='u wind component'            , units='m s-1'  , dim_names=lon_dims_2d)
-      call fiona_add_var('h0', 'ua'   , long_name='u wind component on A grid'  , units='m s-1'  , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'v'    , long_name='v wind component'            , units='m s-1'  , dim_names=lat_dims_2d)
-      call fiona_add_var('h0', 'va'   , long_name='v wind component on A grid'  , units='m s-1'  , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'z'    , long_name='height'                      , units='m'      , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'zs'   , long_name='surface height'              , units='m'      , dim_names=cell_dims_2d)
       call fiona_add_var('h0', 'pv'   , long_name='potential vorticity'         , units='m-1 s-1', dim_names=vtx_dims_2d)
@@ -190,17 +176,11 @@ contains
       call fiona_add_var('h1', 'ke'       , long_name='kinetic energy on cell grid'                   , units='', dim_names=cell_dims_2d)
     end if
 
-    if(.not. allocated(ua)) call allocate_array(global_mesh, ua, full_lon=.true., full_lat=.true., full_lev=.true.)
-    if(.not. allocated(va)) call allocate_array(global_mesh, va, full_lon=.true., full_lat=.true., full_lev=.true.)
-
     call time_add_alert('history_write', seconds=seconds)
 
   end subroutine history_init
 
   subroutine history_final()
-
-    if(allocated(ua)) deallocate(ua)
-    if(allocated(va)) deallocate(va)
 
   end subroutine history_final
 
@@ -231,19 +211,6 @@ contains
       mesh => blocks(iblk)%mesh
       state => blocks(iblk)%state(itime)
       static => blocks(iblk)%static
-      ! Convert wind from C grid to A grid
-      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-#ifdef V_POLE
-            va(i,j,k) = 0.5_r8 * (state%v(i,j,k) + state%v(i,j+1,k))
-#else
-            va(i,j,k) = 0.5_r8 * (state%v(i,j,k) + state%v(i,j-1,k))
-#endif
-            ua(i,j,k) = 0.5_r8 * (state%u(i,j,k) + state%u(i-1,j,k))
-          end do 
-        end do
-      end do
 
       is = mesh%full_lon_ibeg; ie = mesh%full_lon_iend
       js = mesh%full_lat_ibeg; je = mesh%full_lat_iend
@@ -252,8 +219,6 @@ contains
       count = [mesh%num_full_lon,mesh%num_full_lat,mesh%num_full_lev]
 
       call fiona_output('h0', 'zs' , static%gzs(is:ie,js:je      ) / g  , start=start, count=count)
-      call fiona_output('h0', 'ua' , ua        (is:ie,js:je,ks:ke)      , start=start, count=count)
-      call fiona_output('h0', 'va' , va        (is:ie,js:je,ks:ke)      , start=start, count=count)
       call fiona_output('h0', 'div', state%div (is:ie,js:je,ks:ke)      , start=start, count=count)
       if (baroclinic) then
         call fiona_output('h0', 'wp' , state%wp  (is:ie,js:je,ks:ke)      , start=start, count=count)
@@ -261,8 +226,6 @@ contains
 
       if (baroclinic) then
         call fiona_output('h0', 't'     , state%t     (is:ie,js:je,ks:ke), start=start, count=count)
-        call fiona_output('h0', 't850'  , state%t850  (is:ie,js:je      ), start=start, count=count)
-        call fiona_output('h0', 't700'  , state%t700  (is:ie,js:je      ), start=start, count=count)
         call fiona_output('h0', 'pt'    , state%pt    (is:ie,js:je,ks:ke), start=start, count=count)
         call fiona_output('h0', 'phs'   , state%phs   (is:ie,js:je      ), start=start, count=count)
         call fiona_output('h0', 'ph'    , state%ph    (is:ie,js:je,ks:ke), start=start, count=count)
@@ -275,10 +238,6 @@ contains
       count = [mesh%num_half_lon,mesh%num_full_lat,mesh%num_full_lev]
 
       call fiona_output('h0', 'u'   , state%u   (is:ie,js:je,ks:ke), start=start, count=count)
-      if (baroclinic) then
-        call fiona_output('h0', 'u850', state%u850(is:ie,js:je,ks:ke), start=start, count=count)
-        call fiona_output('h0', 'u700', state%u700(is:ie,js:je,ks:ke), start=start, count=count)
-      end if
 
       is = mesh%full_lon_ibeg; ie = mesh%full_lon_iend
       js = mesh%half_lat_ibeg; je = mesh%half_lat_iend
@@ -287,10 +246,6 @@ contains
       count = [mesh%num_full_lon,mesh%num_half_lat,mesh%num_full_lev]
 
       call fiona_output('h0', 'v'   , state%v   (is:ie,js:je,ks:ke), start=start, count=count)
-      if (baroclinic) then
-        call fiona_output('h0', 'v850', state%v850(is:ie,js:je,ks:ke), start=start, count=count)
-        call fiona_output('h0', 'v700', state%v700(is:ie,js:je,ks:ke), start=start, count=count)
-      end if
 
       is = mesh%half_lon_ibeg; ie = mesh%half_lon_iend
       js = mesh%half_lat_ibeg; je = mesh%half_lat_iend
