@@ -42,6 +42,7 @@ module tend_mod
     real(r8), allocatable, dimension(:,:,:) :: wedvdlev
     real(r8), allocatable, dimension(:,:,:) :: dvordlon
     real(r8), allocatable, dimension(:,:,:) :: dvordlat
+    real(r8), allocatable, dimension(:,:,:) :: smag_dpt
   contains
     procedure :: init => tend_init
     procedure :: reset_flags => tend_reset_flags
@@ -80,6 +81,7 @@ contains
     call allocate_array(mesh, this%wedvdlev, full_lon=.true., half_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%dvordlon, full_lon=.true., half_lat=.true., full_lev=.true.)
     call allocate_array(mesh, this%dvordlat, half_lon=.true., full_lat=.true., full_lev=.true.)
+    call allocate_array(mesh, this%smag_dpt, full_lon=.true., full_lat=.true., full_lev=.true.)
 
   end subroutine tend_init
 
@@ -117,12 +119,13 @@ contains
     if (allocated(this%dptfdlon)) deallocate(this%dptfdlon)
     if (allocated(this%dptfdlat)) deallocate(this%dptfdlat)
     if (allocated(this%dptfdlev)) deallocate(this%dptfdlev)
-    if (allocated(this%pgf_lon )) deallocate(this%pgf_lon  )
-    if (allocated(this%pgf_lat )) deallocate(this%pgf_lat  )
+    if (allocated(this%pgf_lon )) deallocate(this%pgf_lon )
+    if (allocated(this%pgf_lat )) deallocate(this%pgf_lat )
     if (allocated(this%wedudlev)) deallocate(this%wedudlev)
     if (allocated(this%wedvdlev)) deallocate(this%wedvdlev)
     if (allocated(this%dvordlon)) deallocate(this%dvordlon)
     if (allocated(this%dvordlat)) deallocate(this%dvordlat)
+    if (allocated(this%smag_dpt)) deallocate(this%smag_dpt)
 
   end subroutine tend_clear
 

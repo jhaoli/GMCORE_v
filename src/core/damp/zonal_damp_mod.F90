@@ -13,6 +13,7 @@ module zonal_damp_mod
   public zonal_damp_final
   public zonal_damp_on_lon_edge
   public zonal_damp_on_lat_edge
+  public zonal_damp_on_lev_edge
   public zonal_damp_on_cell
   public zonal_damp_on_vtx
   public zonal_damp_1d
@@ -36,37 +37,24 @@ contains
 
   subroutine zonal_damp_init()
 
-    integer j, jr
+    integer j
 
     call zonal_damp_final()
 
     allocate(zonal_damp_on_full_lat(global_mesh%num_full_lat)); zonal_damp_on_full_lat = .false.
     allocate(zonal_damp_on_half_lat(global_mesh%num_half_lat)); zonal_damp_on_half_lat = .false.
 
-    ! Only do zonal damp in reduce regions.
     do j = global_mesh%full_lat_ibeg_no_pole, global_mesh%full_lat_iend_no_pole
-      if (global_mesh%full_lat(j) <= 0) then
-        jr = j - global_mesh%full_lat_ibeg_no_pole + 1
-      else
-        jr = global_mesh%full_lat_iend_no_pole - j + 1
-      end if
-      if (reduce_factors(jr) > 1) then
+      if (abs(global_mesh%full_lat_deg(j)) >= polar_damp_lat0) then
         zonal_damp_on_full_lat(j) = .true.
       end if
     end do
     do j = global_mesh%half_lat_ibeg_no_pole, global_mesh%half_lat_iend_no_pole
-      if (global_mesh%half_lat(j) <= 0) then
-        jr = j - global_mesh%half_lat_ibeg_no_pole + 1
-      else
-        jr = global_mesh%half_lat_iend_no_pole - j + 1
-      end if
 #ifdef V_POLE
-      if (reduce_factors(jr) > 1 .or. reduce_factors(jr-1) > 1) then
+      zonal_damp_on_half_lat(j) = zonal_damp_on_full_lat(j) .or. zonal_damp_on_full_lat(j-1)
 #else
-      if (reduce_factors(jr) > 1 .or. reduce_factors(jr+1) > 1) then
+      zonal_damp_on_half_lat(j) = zonal_damp_on_full_lat(j) .or. zonal_damp_on_full_lat(j+1)
 #endif
-        zonal_damp_on_half_lat(j) = .true.
-      end if
     end do
 
   end subroutine zonal_damp_init
@@ -88,14 +76,12 @@ contains
                                  block%mesh%full_lev_lb:block%mesh%full_lev_ub)
 
     type(mesh_type), pointer :: mesh
-    logical, pointer :: on(:)
     integer j, k
 
-    on => zonal_damp_on_half_lat
     mesh => block%mesh
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
       do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-        if (on(j)) then
+        if (zonal_damp_on_full_lat(j)) then
           call zonal_damp_1d(block, order, dt, mesh%half_lon_lb, mesh%half_lon_ub, mesh%lon_halo_width, f(:,j,k))
         end if
       end do
@@ -113,20 +99,41 @@ contains
                                  block%mesh%full_lev_lb:block%mesh%full_lev_ub)
 
     type(mesh_type), pointer :: mesh
-    logical, pointer :: on(:)
     integer j, k
 
-    on => zonal_damp_on_half_lat
     mesh => block%mesh
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
       do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-        if (on(j)) then
+        if (zonal_damp_on_half_lat(j)) then
           call zonal_damp_1d(block, order, dt, mesh%full_lon_lb, mesh%full_lon_ub, mesh%lon_halo_width, f(:,j,k))
         end if
       end do
     end do
 
   end subroutine zonal_damp_on_lat_edge
+
+  subroutine zonal_damp_on_lev_edge(block, order, dt, f)
+
+    type(block_type), intent(in), target :: block
+    integer, intent(in) :: order
+    real(8), intent(in) :: dt
+    real(r8), intent(inout) :: f(block%mesh%full_lon_lb:block%mesh%full_lon_ub, &
+                                 block%mesh%full_lat_lb:block%mesh%full_lat_ub, &
+                                 block%mesh%half_lev_lb:block%mesh%half_lev_ub)
+
+    type(mesh_type), pointer :: mesh
+    integer j, k
+
+    mesh => block%mesh
+    do k = mesh%half_lev_ibeg, mesh%half_lev_iend
+      do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+        if (zonal_damp_on_full_lat(j)) then
+          call zonal_damp_1d(block, order, dt, mesh%full_lon_lb, mesh%full_lon_ub, mesh%lon_halo_width, f(:,j,k))
+        end if
+      end do
+    end do
+
+  end subroutine zonal_damp_on_lev_edge
 
   subroutine zonal_damp_on_cell(block, order, dt, f)
 
@@ -138,14 +145,12 @@ contains
                                  block%mesh%full_lev_lb:block%mesh%full_lev_ub)
 
     type(mesh_type), pointer :: mesh
-    logical, pointer :: on(:)
     integer j, k
 
-    on => zonal_damp_on_half_lat
     mesh => block%mesh
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
       do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-        if (on(j)) then
+        if (zonal_damp_on_full_lat(j)) then
           call zonal_damp_1d(block, order, dt, mesh%full_lon_lb, mesh%full_lon_ub, mesh%lon_halo_width, f(:,j,k))
         end if
       end do
@@ -163,14 +168,12 @@ contains
                                  block%mesh%full_lev_lb:block%mesh%full_lev_ub)
 
     type(mesh_type), pointer :: mesh
-    logical, pointer :: on(:)
     integer j, k
 
-    on => zonal_damp_on_half_lat
     mesh => block%mesh
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
       do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
-        if (on(j)) then
+        if (zonal_damp_on_half_lat(j)) then
           call zonal_damp_1d(block, order, dt, mesh%half_lon_lb, mesh%half_lon_ub, mesh%lon_halo_width, f(:,j,k))
         end if
       end do

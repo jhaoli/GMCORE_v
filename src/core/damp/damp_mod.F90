@@ -17,8 +17,8 @@ module damp_mod
 
   public damp_init
   public damp_final
-  public polar_damp
-  public div_damp
+  public polar_damp_run
+  public div_damp_run
   public vor_damp_run
   public smag_damp_run
 
@@ -42,7 +42,7 @@ contains
 
   end subroutine damp_final
 
-  subroutine polar_damp(block, dt, state)
+  subroutine polar_damp_run(block, dt, state)
 
     type(block_type), intent(in), target :: block
     real(8), intent(in) :: dt
@@ -50,15 +50,13 @@ contains
     integer cyc 
   
     do cyc = 1, 5
-      call zonal_damp_on_cell(block, polar_damp_order, dt, state%pt)
+      if (baroclinic) then
+        call zonal_damp_on_cell(block, polar_damp_order, dt, state%pt)
+      end if
       call zonal_damp_on_lon_edge(block, polar_damp_order, dt, state%u)
       call zonal_damp_on_lat_edge(block, polar_damp_order, dt, state%v)
     end do
 
-    if (baroclinic) then
-      call zonal_damp_on_cell(block, polar_damp_order, dt, state%pt)
-    end if
-
-  end subroutine polar_damp
+  end subroutine polar_damp_run
 
 end module damp_mod

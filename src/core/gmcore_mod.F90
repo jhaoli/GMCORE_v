@@ -369,21 +369,21 @@ contains
       call splitter(dt, blocks(iblk))
 
       if (use_div_damp) then
-        call div_damp(blocks(iblk), dt, blocks(iblk)%state(new))
+        call div_damp_run(blocks(iblk), dt, blocks(iblk)%state(new))
       end if
       if (use_vor_damp) then
         call vor_damp_run(blocks(iblk), dt, blocks(iblk)%state(new))
       end if
       if (use_polar_damp) then
-        call polar_damp(blocks(iblk), dt, blocks(iblk)%state(new))
+        call polar_damp_run(blocks(iblk), dt, blocks(iblk)%state(new))
       end if
       if (use_smag_damp) then
-        call smag_damp_run(blocks(iblk), dt, blocks(iblk)%state(new))
+        call smag_damp_run(blocks(iblk), dt, blocks(iblk)%tend(new), blocks(iblk)%state(new))
       end if
 
       call test_forcing_run(blocks(iblk), dt, blocks(iblk)%state(new))
 
-      if (use_div_damp .or. use_vor_damp .or. use_polar_damp) then
+      if (use_div_damp .or. use_vor_damp .or. use_polar_damp .or. use_smag_damp) then
         call operators_prepare(blocks(iblk), blocks(iblk)%state(new), dt, all_pass)
       end if
     end do

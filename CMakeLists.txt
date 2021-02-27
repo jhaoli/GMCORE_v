@@ -12,11 +12,6 @@ if (V_POLE)
 	set(CPPFLAGS ${CPPFLAGS} -DV_POLE)
 	message(STATUS "Place v at Poles.")
 endif ()
-if (SIGMA)
-  add_definitions(-DSIGMA)
-	set(CPPFLAGS ${CPPFLAGS} -DSIGMA)
-  message(STATUS "Use sigma vertical coordinate.")
-endif ()
 if (R4)
   add_definitions(-DREAL_KIND=4)
 	set(CPPFLAGS ${CPPFLAGS} -DREAL_KIND=4)
@@ -38,9 +33,9 @@ if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
   # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
 elseif (CMAKE_Fortran_COMPILER_ID STREQUAL "Intel")
 	if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-		set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -O0 -check bounds -g -traceback")
+		set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -O0 -check bounds -g -traceback -mkl")
 	else ()
-		set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -O3 -align array64byte")
+		set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -O3 -align array64byte -mkl")
 	endif ()
 endif ()
 
@@ -66,6 +61,20 @@ else ()
   else ()
     message(FATAL_ERROR "Unable to find pkg-config library!")
   endif ()
+endif ()
+
+if (DEFINED ENV{MKLROOT})
+  include_directories("$ENV{MKLROOT}/include")
+  link_directories("$ENV{MKLROOT}/lib")
+elseif (DEFINED ENV{MKL_INC} AND DEFINED ENV{MKL_LIB})
+  include_directories("$ENV{MKL_INC}")
+  link_directories("$ENV{MKL_LIB}")
+else ()
+  message (FATAL_ERROR "Unable to find MKL library!")
+endif ()
+
+if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+	set (MKL_LIBRARIES "lapack64")
 endif ()
 
 add_subdirectory(lib/container)
@@ -98,6 +107,7 @@ set(source_files
   src/utils/allocator_mod.F90
   src/utils/parallel_types_mod.F90
   src/utils/parallel_mod.F90
+	src/utils/tridiag_mod.F90
   src/utils/debug_mod.F90
   src/core/pgf/pgf_mod.F90
   src/core/pgf/pgf_swm_mod.F90
