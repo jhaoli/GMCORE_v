@@ -201,7 +201,7 @@ contains
     associate (mesh              => block%mesh               , & ! in
                dmfdlon           => tend%dmfdlon             , & ! in
                dmfdlat           => tend%dmfdlat             , & ! in
-               dphs              => tend%dphs                , & ! out
+               dphs              => tend%dphs                , & ! in
                wedphdlev_lev     => state%wedphdlev_lev      , & ! out
                wedphdlev_lev_lon => state%wedphdlev_lev_lon  , & ! out
                wedphdlev_lev_lat => state%wedphdlev_lev_lat)     ! out
@@ -210,7 +210,7 @@ contains
           do i = mesh%full_lon_ibeg, mesh%full_lon_iend
             mf = 0.0_r8
             do l = 1, k - 1
-              mf = mf + tend%dmfdlon(i,j,l) + tend%dmfdlat(i,j,l)
+              mf = mf + dmfdlon(i,j,l) + dmfdlat(i,j,l)
             end do
             wedphdlev_lev(i,j,k) = - vert_coord_calc_dphdt_lev(k, dphs(i,j)) - mf
           end do
@@ -873,7 +873,6 @@ contains
 #ifndef V_POLE
     if (mesh%has_south_pole()) then
       j = mesh%full_lat_ibeg
-      pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
           work(i,k) = state%mf_lat_n(i,j,k)
@@ -889,7 +888,6 @@ contains
     end if
     if (mesh%has_north_pole()) then
       j = mesh%full_lat_iend
-      pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
           work(i,k) = - state%mf_lat_n(i,j-1,k)
@@ -923,7 +921,7 @@ contains
 
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
       do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
-        if (block%reduced_mesh(j)%reduce_factor > 0) then
+        if (block%reduced_mesh(j)%reduce_factor > 1) then
           tend%dptfdlon(:,j,k) = 0.0_r8
           do move = 1, block%reduced_mesh(j)%reduce_factor
             do i = block%reduced_mesh(j)%full_lon_ibeg, block%reduced_mesh(j)%full_lon_iend
@@ -967,7 +965,6 @@ contains
 #ifndef V_POLE
     if (mesh%has_south_pole()) then
       j = mesh%full_lat_ibeg
-      pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
           work(i,k) = state%mf_lat_n(i,j,k) * state%pt_lat(i,j,k)
@@ -983,7 +980,6 @@ contains
     end if
     if (mesh%has_north_pole()) then
       j = mesh%full_lat_iend
-      pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%full_lon_ibeg, mesh%full_lon_iend
           work(i,k) = - state%mf_lat_n(i,j-1,k) * state%pt_lat(i,j-1,k)

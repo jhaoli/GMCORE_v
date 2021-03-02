@@ -91,7 +91,6 @@ contains
 #ifdef V_POLE
     if (mesh%has_south_pole()) then
       j = mesh%half_lat_ibeg
-      pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%half_lon_ibeg, mesh%half_lon_iend
           work(i,k) = - state%u(i,j,k) * mesh%de_lon(j)
@@ -107,7 +106,6 @@ contains
     end if
     if (mesh%has_north_pole()) then
       j = mesh%half_lat_iend
-      pole = 0.0_r8
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do i = mesh%half_lon_ibeg, mesh%half_lon_iend
           work(i,k) = state%u(i,j-1,k) * mesh%de_lon(j-1)
@@ -126,7 +124,6 @@ contains
       ! Special treatment of vorticity around Poles
       if (mesh%has_south_pole()) then
         j = mesh%half_lat_ibeg
-        pole = 0.0_r8
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
           do i = mesh%half_lon_ibeg, mesh%half_lon_iend
             work(i,k) = - state%u(i,j+1,k) * mesh%de_lon(j+1)
@@ -142,7 +139,6 @@ contains
       end if
       if (mesh%has_north_pole()) then
         j = mesh%half_lat_iend
-        pole = 0.0_r8
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
           do i = mesh%half_lon_ibeg, mesh%half_lon_iend
             work(i,k) = state%u(i,j,k) * mesh%de_lon(j)
@@ -168,7 +164,6 @@ contains
     type(state_type), intent(inout) :: state
 
     type(mesh_type), pointer :: mesh
-    real(r8) pole(state%mesh%num_full_lev)
     integer i, j, k
 
     call calc_vor(block, state)
@@ -276,9 +271,9 @@ contains
       end do
     end do
 #ifdef V_POLE
-    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., south_halo=.false.)
+    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., south_halo=.false.)
 #else
-    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., north_halo=.false.)
+    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., north_halo=.false.)
 #endif
 
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
@@ -293,9 +288,9 @@ contains
       end do
     end do
 #ifdef V_POLE
-    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., east_halo=.false., north_halo=.false.)
+    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., north_halo=.false.)
 #else
-    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., east_halo=.false., south_halo=.false.)
+    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., south_halo=.false.)
 #endif
 
   end subroutine interp_pv_midpoint
@@ -353,9 +348,9 @@ contains
     end select
 
 #ifdef V_POLE
-    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., south_halo=.false.)
+    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., south_halo=.false.)
 #else
-    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., north_halo=.false.)
+    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., north_halo=.false.)
 #endif
 
     select case (upwind_order_pv)
@@ -412,9 +407,9 @@ contains
       end do
     end select
 #ifdef V_POLE
-    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., east_halo=.false., north_halo=.false.)
+    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., north_halo=.false.)
 #else
-    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., east_halo=.false., south_halo=.false.)
+    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., south_halo=.false.)
 #endif
 
   end subroutine interp_pv_upwind
@@ -452,9 +447,9 @@ contains
     if (mesh%has_north_pole()) state%pv_lat(:,mesh%half_lat_iend,:) = state%pv(:,mesh%half_lat_iend,:)
 #endif
 #ifdef V_POLE
-    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., south_halo=.false.)
+    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., south_halo=.false.)
 #else
-    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., north_halo=.false.)
+    call fill_halo(block, state%pv_lat, full_lon=.true., full_lat=.false., full_lev=.true., north_halo=.false.)
 #endif
 
     do k = mesh%full_lev_ibeg, mesh%full_lev_iend
@@ -481,9 +476,9 @@ contains
       end do
     end do
 #ifdef V_POLE
-    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., east_halo=.false., north_halo=.false.)
+    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., north_halo=.false.)
 #else
-    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., east_halo=.false., south_halo=.false.)
+    call fill_halo(block, state%pv_lon, full_lon=.false., full_lat=.true., full_lev=.true., south_halo=.false.)
 #endif
 
   end subroutine interp_pv_apvm

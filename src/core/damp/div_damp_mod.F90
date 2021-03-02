@@ -60,12 +60,14 @@ contains
             jr = global_mesh%full_lat_iend_no_pole - j + 1
           end if
           if (baroclinic) then
-            c0 = div_damp_coef2 + exp(k**2 * log(div_damp_decay_top) / div_damp_k0**2) * &
-                (div_damp_coef2_top - div_damp_coef2)
-            c1 = c0 * global_mesh%full_cos_lat(j)**r
-            c2 = c1 + exp(jr**2 * log(div_damp_decay_pole) / j0**2) * (div_damp_coef2_pole - c1)
-            if (c2 < 1.0e-9) c2 = 0
-            cd_full_lat(j,k) = c2 * radius**2 * dlat0 * global_mesh%dlon / dt_in_seconds
+!            c0 = div_damp_coef2 + exp(k**2 * log(div_damp_decay_top) / div_damp_k0**2) * &
+!                (div_damp_coef2_top - div_damp_coef2)
+!            c1 = c0 * global_mesh%full_cos_lat(j)**r
+!            c2 = c1 + exp(jr**2 * log(div_damp_decay_pole) / j0**2) * (div_damp_coef2_pole - c1)
+!            if (c2 < 1.0e-9) c2 = 0
+!            cd_full_lat(j,k) = c2 * radius**2 * dlat0 * global_mesh%dlon / dt_in_seconds
+            cd_full_lat(j,k) = div_damp_coef2 * global_mesh%full_cos_lat(j) * &
+              radius**2 * global_mesh%dlat(j) * global_mesh%dlon / dt_in_seconds
           else
             cd_full_lat(j,k) = div_damp_coef2 * &
               global_mesh%full_cos_lat(j)**r * &
@@ -82,17 +84,35 @@ contains
             jr = global_mesh%half_lat_iend_no_pole - j + 1
           end if
           if (baroclinic) then
-            c0 = div_damp_coef2 + exp(k**2 * log(div_damp_decay_top) / div_damp_k0**2) * &
-                (div_damp_coef2_top - div_damp_coef2)
-            c1 = c0 * global_mesh%half_cos_lat(j)**r
-            c2 = c1 + exp(jr**2 * log(div_damp_decay_pole) / j0**2) * (div_damp_coef2_pole - c1)
-            if (c2 < 1.0e-9) c2 = 0
-            cd_half_lat(j,k) = c2 * radius**2 * dlat0 * global_mesh%dlon / dt_in_seconds
+!            c0 = div_damp_coef2 + exp(k**2 * log(div_damp_decay_top) / div_damp_k0**2) * &
+!                (div_damp_coef2_top - div_damp_coef2)
+!            c1 = c0 * global_mesh%half_cos_lat(j)**r
+!            c2 = c1 + exp(jr**2 * log(div_damp_decay_pole) / j0**2) * (div_damp_coef2_pole - c1)
+!            if (c2 < 1.0e-9) c2 = 0
+!            cd_half_lat(j,k) = c2 * radius**2 * dlat0 * global_mesh%dlon / dt_in_seconds
+            cd_half_lat(j,k) = div_damp_coef2 * global_mesh%half_cos_lat(j) * &
+              radius**2 * global_mesh%dlat(j) * global_mesh%dlon / dt_in_seconds
           else
             cd_half_lat(j,k) = div_damp_coef2 * &
               global_mesh%half_cos_lat(j)**r * &
               radius**2 * dlat0 * global_mesh%dlon / dt_in_seconds
           end if
+        end do
+      end do
+    case (4)
+      do k = global_mesh%full_lev_ibeg, global_mesh%full_lev_iend
+        do j = global_mesh%full_lat_ibeg_no_pole, global_mesh%full_lat_iend_no_pole
+          cd_full_lat(j,k) = div_damp_coef4 * &
+            (radius**2 * global_mesh%full_cos_lat(j) * global_mesh%dlon * global_mesh%dlat(j))**2 &
+            / dt_in_seconds
+        end do
+      end do
+
+      do k = global_mesh%full_lev_ibeg, global_mesh%full_lev_iend
+        do j = global_mesh%half_lat_ibeg_no_pole, global_mesh%half_lat_iend_no_pole
+          cd_half_lat(j,k) = div_damp_coef4 * &
+            (radius**2 * global_mesh%half_cos_lat(j) * global_mesh%dlon * global_mesh%dlat(j))**2 &
+            / dt_in_seconds
         end do
       end do
     case default
@@ -191,6 +211,30 @@ contains
       end do
       call fill_halo(block, state%u, full_lon=.false., full_lat=.true., full_lev=.true.)
     case (4)
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%half_lat_ibeg_no_pole, mesh%half_lat_iend_no_pole
+          do i = mesh%full_lon_ibeg, mesh%full_lon_iend
+#ifdef V_POLE
+            state%v(i,j,k) = state%v(i,j,k) - dt * cd_half_lat(j,k) * ( &
+              state%div2(i,j,k) - state%div2(i,j-1,k)) / mesh%de_lat(j)
+#else
+            state%v(i,j,k) = state%v(i,j,k) - dt * cd_half_lat(j,k) * ( &
+              state%div2(i,j+1,k) - state%div2(i,j,k)) / mesh%de_lat(j)
+#endif
+          end do
+        end do
+      end do
+      call fill_halo(block, state%v, full_lon=.true., full_lat=.false., full_lev=.true.)
+
+      do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+        do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+          do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+            state%u(i,j,k) = state%u(i,j,k) - dt * cd_full_lat(j,k) * ( &
+              state%div2(i+1,j,k) - state%div2(i,j,k)) / mesh%de_lon(j)
+          end do
+        end do
+      end do
+      call fill_halo(block, state%u, full_lon=.false., full_lat=.true., full_lev=.true.)
     end select
 
   end subroutine div_damp_run

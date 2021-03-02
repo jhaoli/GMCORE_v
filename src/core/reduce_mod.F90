@@ -119,7 +119,7 @@ contains
 
     ! Extend loop range by 1 is for Coriolis forces.
     do j = block%mesh%full_lat_ibeg - 1, block%mesh%full_lat_iend + 1
-      if (block%reduced_mesh(j)%reduce_factor > 0) then
+      if (block%reduced_mesh(j)%reduce_factor > 1) then
         call reduce_state(j, block, block%mesh, state, block%reduced_mesh(j), block%reduced_static(j), block%reduced_state(j), dt, pass)
       end if
     end do
@@ -428,26 +428,31 @@ contains
           call apply_reduce(reduce_args(gz_lev     , reduce_gz_lev     ))
         end select
         ! Potential vorticity
-        call apply_reduce(reduce_args(pv           , reduce_pv         ))
-        select case (pv_scheme)
-        case (1) !midpoint
-          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
-          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_midpoint))
-        case (2) !upwind
-          call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t     ))
-          call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t     ))
-          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_upwind))
-          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_upwind))
-        case (3) ! apvm
-          call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
-          call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
-          call apply_reduce(reduce_args(dpv_lon_t  , reduce_dpv_lon_t  ))
-          call apply_reduce(reduce_args(dpv_lat_n  , reduce_dpv_lat_n  ))
-          call apply_reduce(reduce_args(dpv_lat_t  , reduce_dpv_lat_t  ))
-          call apply_reduce(reduce_args(dpv_lon_n  , reduce_dpv_lon_n  ))
-          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_apvm))
-          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_apvm))
-        end select
+        if (reduce_pv_directly) then
+          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon     ))
+          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat     ))
+        else
+          call apply_reduce(reduce_args(pv           , reduce_pv         ))
+          select case (pv_scheme)
+          case (1) !midpoint
+            call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
+            call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_midpoint))
+          case (2) !upwind
+            call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t     ))
+            call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t     ))
+            call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_upwind))
+            call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_upwind))
+          case (3) ! apvm
+            call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
+            call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
+            call apply_reduce(reduce_args(dpv_lon_t  , reduce_dpv_lon_t  ))
+            call apply_reduce(reduce_args(dpv_lat_n  , reduce_dpv_lat_n  ))
+            call apply_reduce(reduce_args(dpv_lat_t  , reduce_dpv_lat_t  ))
+            call apply_reduce(reduce_args(dpv_lon_n  , reduce_dpv_lon_n  ))
+            call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_apvm))
+            call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_apvm))
+          end select
+        end if
     else ! shallow water model
       call apply_reduce(reduce_args(mf_lon_n   , reduce_mf_lon_n   ))
       call apply_reduce(reduce_args(mf_lat_n   , reduce_mf_lat_n   ))
@@ -459,25 +464,30 @@ contains
       call apply_reduce(reduce_args(v          , reduce_v          ))
       call apply_reduce(reduce_args(ke         , reduce_ke         ))
       call apply_reduce(reduce_args(pv         , reduce_pv         ))
-      select case (pv_scheme)
-      case (1)
-        call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
-        call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_midpoint))
-      case (2)
-        call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
-        call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
-        call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_upwind))
-        call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_upwind))
-      case (3)
-        call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
-        call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
-        call apply_reduce(reduce_args(dpv_lon_t  , reduce_dpv_lon_t  ))
-        call apply_reduce(reduce_args(dpv_lat_n  , reduce_dpv_lat_n  ))
-        call apply_reduce(reduce_args(dpv_lat_t  , reduce_dpv_lat_t  ))
-        call apply_reduce(reduce_args(dpv_lon_n  , reduce_dpv_lon_n  ))
-        call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_apvm))
-        call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_apvm))
-      end select
+      if (reduce_pv_directly) then
+        call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon   ))
+        call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat   ))
+      else
+        select case (pv_scheme)
+        case (1)
+          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
+          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_midpoint))
+        case (2)
+          call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
+          call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
+          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_upwind))
+          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_upwind))
+        case (3)
+          call apply_reduce(reduce_args(mf_lon_t   , reduce_mf_lon_t   ))
+          call apply_reduce(reduce_args(mf_lat_t   , reduce_mf_lat_t   ))
+          call apply_reduce(reduce_args(dpv_lon_t  , reduce_dpv_lon_t  ))
+          call apply_reduce(reduce_args(dpv_lat_n  , reduce_dpv_lat_n  ))
+          call apply_reduce(reduce_args(dpv_lat_t  , reduce_dpv_lat_t  ))
+          call apply_reduce(reduce_args(dpv_lon_n  , reduce_dpv_lon_n  ))
+          call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_apvm))
+          call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat_apvm))
+        end select
+      end if
     end if
 
   end subroutine reduce_state
@@ -1058,6 +1068,58 @@ contains
     end do
 
   end subroutine reduce_dpv_lat_n
+  
+	subroutine reduce_pv_lon(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
+
+    integer, intent(in) :: j
+    integer, intent(in) :: buf_j
+    integer, intent(in) :: move
+    type(block_type), intent(in) :: block
+    type(mesh_type), intent(in) :: raw_mesh
+    type(state_type), intent(inout) :: raw_state
+    type(reduced_mesh_type), intent(in) :: reduced_mesh
+    type(reduced_static_type), intent(in) :: reduced_static
+    type(reduced_state_type), intent(inout) :: reduced_state
+    real(8), intent(in) :: dt
+
+    integer raw_i, i, k
+
+    raw_i = raw_mesh%half_lon_ibeg + move - 1
+    do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
+      do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
+        reduced_state%pv_lon(k,i,buf_j,move) = sum(raw_state%pv_lon(raw_i:raw_i+reduced_mesh%reduce_factor-1,j+buf_j,k) * reduced_mesh%weights)
+      end do
+      raw_i = raw_i + reduced_mesh%reduce_factor
+    end do
+    call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%pv_lon(:,:,buf_j,move))
+
+  end subroutine reduce_pv_lon
+
+  subroutine reduce_pv_lat(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
+
+    integer, intent(in) :: j
+    integer, intent(in) :: buf_j
+    integer, intent(in) :: move
+    type(block_type), intent(in) :: block
+    type(mesh_type), intent(in) :: raw_mesh
+    type(state_type), intent(inout) :: raw_state
+    type(reduced_mesh_type), intent(in) :: reduced_mesh
+    type(reduced_static_type), intent(in) :: reduced_static
+    type(reduced_state_type), intent(inout) :: reduced_state
+    real(8), intent(in) :: dt
+
+    integer raw_i, i, k
+
+    raw_i = raw_mesh%full_lon_ibeg + move - 1
+    do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
+      do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
+        reduced_state%pv_lat(k,i,buf_j,move) = sum(raw_state%pv_lat(raw_i:raw_i+reduced_mesh%reduce_factor-1,j+buf_j,k) * reduced_mesh%weights)
+      end do
+      raw_i = raw_i + reduced_mesh%reduce_factor
+    end do
+    call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%pv_lat(:,:,buf_j,move))
+
+  end subroutine reduce_pv_lat
 
   subroutine reduce_pv_lon_midpoint(j, buf_j, move, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, dt)
 
@@ -1489,7 +1551,7 @@ contains
         ptf_lon(k,i,buf_j,move) = mf_lon_n(k,i,buf_j,move) * pt_lon  (k,i,buf_j,move)
       end do
     end do
-      call fill_zonal_halo(block, mesh%halo_width, ptf_lon(:,:,buf_j,move), east_halo=.false.)
+      call fill_zonal_halo(block, reduced_mesh%halo_width, ptf_lon(:,:,buf_j,move), east_halo=.false.)
     end associate
 
   end subroutine reduce_ptf_lon
