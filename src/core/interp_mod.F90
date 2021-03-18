@@ -51,7 +51,7 @@ module interp_mod
   public interp_lon_edge_to_isobaric_level
   public interp_lat_edge_to_isobaric_level
 
-  real(r8), allocatable :: pole_wgt(:)
+  real(r8), public, allocatable :: pole_wgt(:)
 
 contains
 

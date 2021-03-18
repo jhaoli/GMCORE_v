@@ -32,6 +32,11 @@ module zonal_damp_mod
     -1,  7, -21,  35, -35,  21, - 7,   1,  0,  & ! 7
      1, -8,  28, -56,  70, -56,  28, - 8,  1   & ! 8
   ], [9, 7])
+  
+  interface zonal_damp_on_cell
+    module procedure zonal_damp_on_cell_2d
+    module procedure zonal_damp_on_cell_3d
+  end interface zonal_damp_on_cell
 
 contains
 
@@ -134,8 +139,37 @@ contains
     end do
 
   end subroutine zonal_damp_on_lev_edge
+  
+  subroutine zonal_damp_on_cell_2d(block, order, dt, f, lat0)
 
-  subroutine zonal_damp_on_cell(block, order, dt, f)
+    type(block_type), intent(in), target :: block
+    integer, intent(in) :: order
+    real(8), intent(in) :: dt
+    real(r8), intent(inout) :: f(block%mesh%full_lon_lb:block%mesh%full_lon_ub, &
+                                 block%mesh%full_lat_lb:block%mesh%full_lat_ub)
+    real(r8), intent(in), optional :: lat0
+
+    type(mesh_type), pointer :: mesh
+    integer j, k
+
+    mesh => block%mesh
+    if (present(lat0)) then
+      do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+        if (abs(mesh%full_lat_deg(j)) >= lat0) then
+          call zonal_damp_1d(block, order, dt, mesh%full_lon_lb, mesh%full_lon_ub, mesh%lon_halo_width, f(:,j))
+        end if
+      end do
+    else
+      do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
+        if (zonal_damp_on_full_lat(j)) then
+          call zonal_damp_1d(block, order, dt, mesh%full_lon_lb, mesh%full_lon_ub, mesh%lon_halo_width, f(:,j))
+        end if
+      end do
+    end if
+
+  end subroutine zonal_damp_on_cell_2d
+
+  subroutine zonal_damp_on_cell_3d(block, order, dt, f)
 
     type(block_type), intent(in), target :: block
     integer, intent(in) :: order
@@ -156,7 +190,7 @@ contains
       end do
     end do
 
-  end subroutine zonal_damp_on_cell
+  end subroutine zonal_damp_on_cell_3d
 
   subroutine zonal_damp_on_vtx(block, order, dt, f)
 

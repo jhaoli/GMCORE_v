@@ -122,6 +122,7 @@ set(source_files
   src/core/state_mod.F90
   src/core/static_mod.F90
   src/core/tend_mod.F90
+  src/core/upwind_mod.F90
   src/core/pv_mod.F90
   src/core/ke_mod.F90
   src/core/interp_mod.F90

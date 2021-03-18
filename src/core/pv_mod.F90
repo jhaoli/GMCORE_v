@@ -3,6 +3,7 @@ module pv_mod
   use const_mod
   use namelist_mod
   use mesh_mod
+  use upwind_mod
   use state_mod
   use block_mod
   use parallel_mod
@@ -303,14 +304,11 @@ contains
     logical, intent(in), optional :: enhance_pole
 
     type(mesh_type), pointer :: mesh
-    real(r8), parameter :: c11 =  0.5_r8
-    real(r8), parameter :: c12 = -0.5_r8
-    real(r8), parameter :: c31 =  7.0_r8 / 12.0_r8
-    real(r8), parameter :: c32 = -1.0_r8 / 12.0_r8
-    real(r8), parameter :: c33 =  1.0_r8 / 12.0_r8
     real(r8) beta_lon(state%mesh%full_lat_ibeg:state%mesh%full_lat_iend), &
              beta_lat(state%mesh%half_lat_ibeg:state%mesh%half_lat_iend)
     integer i, j, k
+    real(r8) b, vt, ut
+
     mesh => state%mesh
 
     beta_lon = merge(upwind_wgt_, upwind_wgt_pv, present(upwind_wgt_))
@@ -327,9 +325,7 @@ contains
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do j = mesh%half_lat_ibeg, mesh%half_lat_iend
           do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-            state%pv_lat(i,j,k) = c11 * (state%pv(i,j,k) + state%pv(i-1,j,k)) + &
-                                  c12 * (state%pv(i,j,k) - state%pv(i-1,j,k)) * &
-                          beta_lat(j) * sign(1.0_r8, state%mf_lat_t(i,j,k))
+            state%pv_lat(i,j,k) = upwind1(sign(1.0_r8, state%mf_lat_t(i,j,k)), beta_lat(j), state%pv(i-1:i,j,k))
           end do
         end do
       end do
@@ -337,11 +333,10 @@ contains
       do k = mesh%full_lev_ibeg, mesh%full_lev_iend
         do j = mesh%half_lat_ibeg, mesh%half_lat_iend
           do i = mesh%full_lon_ibeg, mesh%full_lon_iend
-            state%pv_lat(i,j,k) = c31 * (state%pv(i  ,j,k) + state%pv(i-1,j,k))  + &
-                                  c32 * (state%pv(i+1,j,k) + state%pv(i-2,j,k))  + &
-                                  c33 * (state%pv(i+1,j,k) - state%pv(i-2,j,k)   - &
-                               3.0_r8 * (state%pv(i  ,j,k) - state%pv(i-1,j,k))) * &
-                          beta_lat(j) * sign(1.0_r8, state%mf_lat_t(i,j,k))
+            ut = state%mf_lat_t(i,j,k) / state%m_lat(i,j,k)
+            b = abs(ut) / sqrt(ut**2 + state%v(i,j,k)**2)
+            state%pv_lat(i,j,k) = b * upwind3(sign(1.0_r8, ut), beta_lat(j), state%pv(i-2:i+1,j,k)) + &
+                        (1 - b) * 0.5_r8 * (state%pv(i-1,j,k) + state%pv(i,j,k))
           end do
         end do
       end do
@@ -359,13 +354,9 @@ contains
         do j = mesh%full_lat_ibeg_no_pole, mesh%full_lat_iend_no_pole
           do i = mesh%half_lon_ibeg, mesh%half_lon_iend
 #ifdef V_POLE
-            state%pv_lon(i,j,k) = c11 * (state%pv(i,j+1,k) + state%pv(i,j,k)) + &
-                                  c12 * (state%pv(i,j+1,k) - state%pv(i,j,k)) * &
-                          beta_lon(j) * sign(1.0_r8, state%mf_lon_t(i,j,k))
+            state%pv_lon(i,j,k) = upwind1(sign(1.0_r8, state%mf_lon_t(i,j,k)), beta_lon(j), state%pv(i,j:j+1,k))
 #else
-            state%pv_lon(i,j,k) = c11 * (state%pv(i,j,k) + state%pv(i,j-1,k)) + &
-                                  c12 * (state%pv(i,j,k) - state%pv(i,j-1,k)) * &
-                          beta_lon(j) * sign(1.0_r8, state%mf_lon_t(i,j,k))
+            state%pv_lon(i,j,k) = upwind1(sign(1.0_r8, state%mf_lon_t(i,j,k)), beta_lon(j), state%pv(i,j-1:j,k))
 #endif
           end do
         end do
@@ -376,30 +367,29 @@ contains
           if (mesh%is_full_lat_next_to_pole(j)) then
             do i = mesh%half_lon_ibeg, mesh%half_lon_iend
 #ifdef V_POLE
-              state%pv_lon(i,j,k) = c11 * (state%pv(i,j+1,k) + state%pv(i,j,k)) + &
-                                    c12 * (state%pv(i,j+1,k) - state%pv(i,j,k)) * &
-                            beta_lon(j) * sign(1.0_r8, state%mf_lon_t(i,j,k))
+              vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              state%pv_lon(i,j,k) = b * upwind1(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j:j+1,k)) + &
+                             (1 - b) * 0.5_r8 * (state%pv(i,j+1,k) + state%pv(i,j,k))
 #else
-              state%pv_lon(i,j,k) = c11 * (state%pv(i,j,k) + state%pv(i,j-1,k)) + &
-                                    c12 * (state%pv(i,j,k) - state%pv(i,j-1,k)) * &
-                            beta_lon(j) * sign(1.0_r8, state%mf_lon_t(i,j,k))
+              vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              state%pv_lon(i,j,k) = b * upwind1(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j-1:j,k)) + &
+                             (1 - b) * 0.5_r8 * (state%pv(i,j-1,k) + state%pv(i,j,k))
 #endif
             end do
           else
             do i = mesh%half_lon_ibeg, mesh%half_lon_iend
 #ifdef V_POLE
-              state%pv_lon(i,j,k) = c31 * (state%pv(i,j+1,k) + state%pv(i,j  ,k))  + &
-                                    c32 * (state%pv(i,j+2,k) + state%pv(i,j-1,k))  + &
-                                    c33 * (state%pv(i,j+2,k) - state%pv(i,j-1,k)   - &
-                                 3.0_r8 * (state%pv(i,j+1,k) - state%pv(i,j  ,k))) * &
-                            beta_lon(j) * sign(1.0_r8, state%mf_lon_t(i,j,k))
-
+              vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              state%pv_lon(i,j,k) = b * upwind3(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j-1:j+2,k)) + &
+                             (1 - b) * 0.5_r8 * (state%pv(i,j+1,k) + state%pv(i,j,k))
 #else
-              state%pv_lon(i,j,k) = c31 * (state%pv(i,j  ,k) + state%pv(i,j-1,k))  + &
-                                    c32 * (state%pv(i,j+1,k) + state%pv(i,j-2,k))  + &
-                                    c33 * (state%pv(i,j+1,k) - state%pv(i,j-2,k)   - &
-                                 3.0_r8 * (state%pv(i,j  ,k) - state%pv(i,j-1,k))) * &
-                            beta_lon(j) * sign(1.0_r8, state%mf_lon_t(i,j,k))
+              vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              state%pv_lon(i,j,k) = b * upwind3(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j-2:j+1,k)) + &
+                             (1 - b) * 0.5_r8 * (state%pv(i,j-1,k) + state%pv(i,j,k))
 #endif
             end do
           endif

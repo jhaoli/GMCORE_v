@@ -30,6 +30,8 @@ module reduce_mod
   use parallel_mod
   use block_mod
   use reduced_types_mod
+  use interp_mod, only : pole_wgt
+  use upwind_mod
 
   implicit none
 
@@ -410,11 +412,13 @@ contains
         call apply_reduce(reduce_args(m          , reduce_m          ))
         call apply_reduce(reduce_args(mf_lon_n   , reduce_mf_lon_n   ))
         call apply_reduce(reduce_args(mf_lat_n   , reduce_mf_lat_n   ))
-        call apply_reduce(reduce_args(m_lon      , reduce_m_lon      ))
-        call apply_reduce(reduce_args(m_lat      , reduce_m_lat      ))
+        if (.not. reduce_pv_directly .or. pv_scheme == 3) then
+          call apply_reduce(reduce_args(m_lon      , reduce_m_lon      ))
+          call apply_reduce(reduce_args(m_lat      , reduce_m_lat      ))
+          call apply_reduce(reduce_args(u          , reduce_u          ))
+          call apply_reduce(reduce_args(v          , reduce_v          ))
+        end if
         call apply_reduce(reduce_args(ke         , reduce_ke         ))
-        call apply_reduce(reduce_args(u          , reduce_u          ))
-        call apply_reduce(reduce_args(v          , reduce_v          ))
         call apply_reduce(reduce_args(pt         , reduce_pt         ))
         call apply_reduce(reduce_args(ptf_lon    , reduce_ptf_lon    ))
         call apply_reduce(reduce_args(ph_lev     , reduce_ph_lev     ))
@@ -1168,40 +1172,24 @@ contains
     type(reduced_static_type), intent(in) :: reduced_static
     type(reduced_state_type), intent(inout) :: reduced_state
     real(8), intent(in) :: dt
-    real(r8), parameter :: c11 =  0.5_r8
-    real(r8), parameter :: c12 = -0.5_r8
-    real(r8), parameter :: c31 =  7.0_r8 / 12.0_r8
-    real(r8), parameter :: c32 = -1.0_r8 / 12.0_r8
-    real(r8), parameter :: c33 =  1.0_r8 / 12.0_r8
 
-    real(r8) le, de
     integer i, k
+    real(r8) b, vt
 
-    le = reduced_mesh%le_lon(buf_j)
-    de = reduced_mesh%de_lon(buf_j)
-    if (le == 0 .or. de == 0) return
+    if (reduced_mesh%le_lon(buf_j) == 0 .or. reduced_mesh%de_lon(buf_j) == 0) return
+    associate (un       => reduced_state%u       , & ! in
+               m_lon    => reduced_state%m_lon   , & ! in
+               mf_lon_t => reduced_state%mf_lon_t, & ! in
+               pv       => reduced_state%pv      , & ! in
+               pv_lon   => reduced_state%pv_lon)     ! out
     select case (upwind_order_pv)
     case (1)
       do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
         do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
 #ifdef V_POLE
-          reduced_state%pv_lon(k,i,buf_j,move) = c11 * (       &
-            reduced_state%pv(k,i,buf_j+1,move) +               &
-            reduced_state%pv(k,i,buf_j  ,move)                 &
-          ) +                                    c12 * (       &
-            reduced_state%pv(k,i,buf_j+1,move) +               &
-            reduced_state%pv(k,i,buf_j  ,move)                 &
-            reduced_state%pv(k,i,buf_j+1,move) +               &
-            reduced_state%pv(k,i,buf_j  ,move)                 &
-          ) * sign(1.0_r8, reduced_state%mf_lon_t(k,i,buf_j,move)) * upwind_wgt_pv
+          pv_lon(k,i,buf_j,move) = upwind1(sign(1.0_r8, mf_lon_t(k,i,buf_j,move)), upwind_wgt_pv, pv(k,i,buf_j:buf_j+1,move))
 #else
-          reduced_state%pv_lon(k,i,buf_j,move) = c11 * (       &
-            reduced_state%pv(k,i,buf_j-1,move) +               &
-            reduced_state%pv(k,i,buf_j  ,move)                 &
-          ) +                                    c12 * (       &
-            reduced_state%pv(k,i,buf_j  ,move) -               &
-            reduced_state%pv(k,i,buf_j-1,move)                 &
-          ) * sign(1.0_r8, reduced_state%mf_lon_t(k,i,buf_j,move)) * upwind_wgt_pv
+          pv_lon(k,i,buf_j,move) = upwind1(sign(1.0_r8, mf_lon_t(k,i,buf_j,move)), upwind_wgt_pv, pv(k,i,buf_j-1:buf_j,move))
 #endif
         end do
       end do
@@ -1210,21 +1198,15 @@ contains
         do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
           do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
 #ifdef V_POLE
-             reduced_state%pv_lon(k,i,buf_j,move) = c11 * (       &
-               reduced_state%pv(k,i,buf_j+1,move) +               &
-               reduced_state%pv(k,i,buf_j  ,move)                 &
-             ) +                                    c12 * (       &
-               reduced_state%pv(k,i,buf_j+1,move) +               &
-               reduced_state%pv(k,i,buf_j  ,move)                 &
-             ) * sign(1.0_r8, reduced_state%mf_lon_t(k,i,buf_j,move)) * upwind_wgt_pv
+          vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
+          b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+          pv_lon(k,i,buf_j,move) = b * upwind1(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j:buf_j+1,move)) + &
+                               (1 - b) * 0.5_r8 * (pv(k,i,buf_j,move) + pv(k,i,buf_j+1,move))
 #else
-             reduced_state%pv_lon(k,i,buf_j,move) = c11 * (      &
-              reduced_state%pv(k,i,buf_j-1,move) +               &
-              reduced_state%pv(k,i,buf_j  ,move)                 &
-             ) +                                    c12 * (      &
-              reduced_state%pv(k,i,buf_j  ,move) -               &
-              reduced_state%pv(k,i,buf_j-1,move)                 &
-             ) * sign(1.0_r8, reduced_state%mf_lon_t(k,i,buf_j,move)) * upwind_wgt_pv
+          vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
+          b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+          pv_lon(k,i,buf_j,move) = b * upwind1(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j-1:buf_j,move)) + &
+                               (1 - b) * 0.5_r8 * (pv(k,i,buf_j-1,move) + pv(k,i,buf_j,move))
 #endif  
           end do
         end do
@@ -1232,42 +1214,23 @@ contains
         do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
           do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
 #ifdef V_POLE
-            reduced_state%pv_lon(k,i,buf_j,move) = c31 * (      &
-              reduced_state%pv(k,i,buf_j+1,move) +              &
-              reduced_state%pv(k,i,buf_j  ,move)                &
-            ) +                                    c32 * (      &
-              reduced_state%pv(k,i,buf_j+2,move) +              &
-              reduced_state%pv(k,i,buf_j-1,move)                &
-            ) +                                    c33 * (      &
-              reduced_state%pv(k,i,buf_j+2,move) -              &
-              reduced_state%pv(k,i,buf_j-1,move) -              &
-              3.0_r8 * (                                        &
-              reduced_state%pv(k,i,buf_j+1,move) -              &
-              reduced_state%pv(k,i,buf_j  ,move)                &
-              )                                                 &
-            ) * sign(1.0, reduced_state%mf_lon_t(k,i,buf_j,move)) * upwind_wgt_pv
+            vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
+            b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+            pv_lon(k,i,buf_j,move) = b * upwind3(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j-1:buf_j+2,move)) + &
+               (1 - b) * 0.5_r8 * (pv(k,i,buf_j+1,move) + pv(k,i,buf_j,move))
 #else
-            reduced_state%pv_lon(k,i,buf_j,move) = c31 * (      &
-              reduced_state%pv(k,i,buf_j  ,move) +              &
-              reduced_state%pv(k,i,buf_j-1,move)                &
-            ) +                                    c32 * (      &
-              reduced_state%pv(k,i,buf_j+1,move) +              &
-              reduced_state%pv(k,i,buf_j-2,move)                &
-            ) +                                    c33 * (      &
-              reduced_state%pv(k,i,buf_j+1,move) -              &
-              reduced_state%pv(k,i,buf_j-2,move) -              &
-              3.0_r8 * (                                        &
-              reduced_state%pv(k,i,buf_j  ,move) -              &
-              reduced_state%pv(k,i,buf_j-1,move)                &
-              )                                                 &
-            ) * sign(1.0, reduced_state%mf_lon_t(k,i,buf_j,move)) * upwind_wgt_pv
+            vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
+            b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+            pv_lon(k,i,buf_j,move) = b * upwind3(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j-2:buf_j+1,move)) + &
+               (1 - b) * 0.5_r8 * (pv(k,i,buf_j-1,move) + pv(k,i,buf_j,move))
 #endif
           end do
         end do
       end if
     end select
 
-    call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%pv_lon(:,:,buf_j,move), east_halo=.false.)
+    call fill_zonal_halo(block, reduced_mesh%halo_width, pv_lon(:,:,buf_j,move), east_halo=.false.)
+    end associate
 
   end subroutine reduce_pv_lon_upwind
 
@@ -1357,48 +1320,43 @@ contains
     type(reduced_static_type), intent(in) :: reduced_static
     type(reduced_state_type), intent(inout) :: reduced_state
     real(8), intent(in) :: dt
-    real(r8), parameter :: c11 =  0.5_r8
-    real(r8), parameter :: c12 = -0.5_r8
-    real(r8), parameter :: c31 =  7.0_r8 / 12.0_r8
-    real(r8), parameter :: c32 = -1.0_r8 / 12.0_r8
-    real(r8), parameter :: c33 =  1.0_r8 / 12.0_r8
     integer i, k
+    real(r8) b, ut
 
     if (reduced_mesh%le_lat(buf_j) == 0 .or. reduced_mesh%de_lat(buf_j) == 0) return
+    associate (vn       => reduced_state%v       , & ! in
+               m_lat    => reduced_state%m_lat   , & ! in
+               mf_lat_t => reduced_state%mf_lat_t, & ! in
+               pv       => reduced_state%pv      , & ! in
+               pv_lat   => reduced_state%pv_lat)     ! out
     select case(upwind_order_pv)
     case (1)
       do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
         do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
-          reduced_state%pv_lat(k,i,buf_j,move) = c11 * (              &
-            reduced_state%pv(k,i  ,buf_j,move) +                      &
-            reduced_state%pv(k,i-1,buf_j,move)                        &
-          ) +                                    c12 * (              &
-            reduced_state%pv(k,i  ,buf_j,move) -                      &
-            reduced_state%pv(k,i-1,buf_j,move)                        &
-          ) * sign(1.0_r8, reduced_state%mf_lat_t(k,i,buf_j,move)) * upwind_wgt_pv
+          pv_lat(k,i,buf_j,move) = upwind1(sign(1.0_r8, mf_lat_t(k,i,buf_j,move)), upwind_wgt_pv, pv(k,i-1:i,buf_j,move))
         end do
       end do
     case (3)
-      do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
-        do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
-          reduced_state%pv_lat(k,i,buf_j,move) = c31 * (              &
-            reduced_state%pv(k,i  ,buf_j,move) +                      &
-            reduced_state%pv(k,i-1,buf_j,move)                        &
-          ) +                                    c32 * (              &
-            reduced_state%pv(k,i+1,buf_j,move) +                      &
-            reduced_state%pv(k,i-2,buf_j,move)                        &
-          ) +                                    c33 * (              &
-            reduced_state%pv(k,i+1,buf_j,move) -                      &
-            reduced_state%pv(k,i-2,buf_j,move) - 3.0_r8 * (           &
-            reduced_state%pv(k,i  ,buf_j,move) -                      &
-            reduced_state%pv(k,i-1,buf_j,move)                        &
-            )                                                         &
-          ) * sign(1.0_r8, reduced_state%mf_lat_t(k,i,buf_j,move)) * upwind_wgt_pv
+      if (raw_mesh%is_south_pole(j + buf_j) .or. raw_mesh%is_north_pole(j + buf_j +1)) then
+        do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
+          do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
+            pv_lat(k,i,buf_j,move) = upwind3(sign(1.0_r8, mf_lat_t(k,i,buf_j,move)), upwind_wgt_pv, pv(k,i-2:i+1,buf_j,move))
+          end do
         end do
-      end do
+      else
+        do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
+          do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
+            ut = mf_lat_t(k,i,buf_j,move) / m_lat(k,i,buf_j,move)
+            b  = abs(ut) / sqrt(ut**2 + vn(k,i,buf_j,move)**2)
+            pv_lat(k,i,buf_j,move) = b * upwind3(sign(1.0_r8, ut), upwind_wgt_pv, pv(k,i-2:i+1,buf_j,move))+ &
+                              (1 - b) * 0.5_r8 * (pv(k,i-1,buf_j,move) + pv(k,i,buf_j,move))
+          end do
+        end do
+      end if
     end select
 
-    call fill_zonal_halo(block, reduced_mesh%halo_width, reduced_state%pv_lat(:,:,buf_j,move), west_halo=.false.)
+    call fill_zonal_halo(block, reduced_mesh%halo_width, pv_lat(:,:,buf_j,move), west_halo=.false.)
+    end associate
 
   end subroutine reduce_pv_lat_upwind
 
@@ -1502,13 +1460,9 @@ contains
     type(reduced_static_type), intent(in) :: reduced_static
     type(reduced_state_type), intent(inout) :: reduced_state
     real(r8), intent(in) :: dt
-    real(r8), parameter :: c11 =  0.5_r8
-    real(r8), parameter :: c12 = -0.5_r8
-    real(r8), parameter :: c31 =  7.0_r8 / 12.0_r8
-    real(r8), parameter :: c32 = -1.0_r8 / 12.0_r8
-    real(r8), parameter :: c33 =  1.0_r8 / 12.0_r8
-  
-    integer raw_i, i, k
+   
+    real(r8) beta
+    integer i, k
 
     if (reduced_mesh%area_lon(buf_j) == 0) return
     associate (mesh     => reduced_mesh           , &
@@ -1519,21 +1473,17 @@ contains
 
     ! Upwind-biased interpolation
     if (upwind_order_pt == 1) then
+      beta = upwind_wgt_pt * pole_wgt(j+buf_j)
       do i = mesh%half_lon_ibeg, mesh%half_lon_iend
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          pt_lon(k,i,buf_j,move) = c11 * (pt(k,i+1,buf_j,move) + pt(k,i,buf_j,move)) + &
-                                   c12 * (pt(k,i+1,buf_j,move) - pt(k,i,buf_j,move)) * &
-                         upwind_wgt_pt * sign(1.0_r8, mf_lon_n(k,i,buf_j,move))
+          pt_lon(k,i,buf_j,move) = upwind1(sign(1.0_r8, mf_lon_n(k,i,buf_j,move)), beta, pt(k,i:i+1,buf_j,move))
         end do
       end do
     else if (upwind_order_pt == 3) then
+      beta = upwind_wgt_pt * pole_wgt(j+buf_j)
       do i = mesh%half_lon_ibeg, mesh%half_lon_iend
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          pt_lon(k,i,buf_j,move) = c31 * (pt(k,i+1,buf_j,move) + pt(k,i  ,buf_j,move))  + &
-                                   c32 * (pt(k,i+2,buf_j,move) + pt(k,i-1,buf_j,move))  + &
-                                   c33 * (pt(k,i+2,buf_j,move) - pt(k,i-1,buf_j,move)   - &
-                                3.0_r8 * (pt(k,i+1,buf_j,move) - pt(k,i  ,buf_j,move))) * &
-                         upwind_wgt_pt * sign(1.0_r8, mf_lon_n(k,i,buf_j,move))
+          pt_lon(k,i,buf_j,move) = upwind3(sign(1.0_r8, mf_lon_n(k,i,buf_j,move)), beta, pt(k,i-1:i+2,buf_j,move))
         end do
       end do
     else
@@ -1548,7 +1498,7 @@ contains
 
     do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend
       do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
-        ptf_lon(k,i,buf_j,move) = mf_lon_n(k,i,buf_j,move) * pt_lon  (k,i,buf_j,move)
+        ptf_lon(k,i,buf_j,move) = mf_lon_n(k,i,buf_j,move) * pt_lon(k,i,buf_j,move)
       end do
     end do
       call fill_zonal_halo(block, reduced_mesh%halo_width, ptf_lon(:,:,buf_j,move), east_halo=.false.)

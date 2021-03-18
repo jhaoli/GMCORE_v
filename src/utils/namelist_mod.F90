@@ -30,6 +30,8 @@ module namelist_mod
 
   character(30)   :: tangent_wgt_scheme   = 'classic'
 
+  real(r8)        :: implicit_w_wgt       = 0.5_r8
+
   character(30)   :: vert_coord_scheme    = 'hybrid'
   character(30)   :: vert_coord_template  = 'N/A'
   character(30)   :: refer_state_scheme   = 'wrf'
@@ -38,14 +40,23 @@ module namelist_mod
   integer         :: ke_scheme            = 1
   real(r8)        :: ke_cell_wgt          = 3.0_r8 / 8.0_r8
 
-  integer         :: pv_scheme            = 1 ! 1 midpoint, 2 upwind, 3 APVM
-  integer         :: upwind_order_pv      = 1 !, 3
-  real(r8)        :: upwind_wgt_pv        = 0.01_r8
+  integer         :: pv_scheme            = 1 ! 1: midpoint, 2: upwind, 3: weno, 4: apvm
   logical         :: pv_pole_stokes       = .true.
+  integer         :: weno_order_pv        = 3
+  integer         :: upwind_order_pv      = 3
+  real(r8)        :: upwind_wgt_pv        = 0.25
+
   character(8)    :: pgf_scheme           = 'lin97'
   integer         :: coriolis_scheme      = 1
+
+  integer         :: weno_order           = -1 ! -1, 3
   integer         :: upwind_order_pt      = -1 ! -1, 1, 3
+  real(r8)        :: upwind_wgt           = 1.0_r8
   real(r8)        :: upwind_wgt_pt        = 0.25_r8
+
+  integer         :: vert_weno_order      = -1 ! -1, 3
+  integer         :: vert_upwind_order    = -1 ! -1, 1, 3
+  integer         :: vert_upwind_wgt      = 1.0_r8
 
   integer         :: fast_cycles          = 1
   character(30)   :: split_scheme         = ''
@@ -55,35 +66,37 @@ module namelist_mod
   real(r8)        :: coarse_pole_decay    = 100.0
 
   ! Reduce settings
-  integer         :: reduce_factors(100)  = 0
-  logical         :: reduce_pv_directly   = .true.
+  integer         :: reduce_factors(200)  = 0
+  logical         :: reduce_pv_directly   = .false.
   logical         :: do_reduce_ke         = .true.
 
   ! Damping settings
   logical         :: use_polar_damp       = .false.
   integer         :: polar_damp_order     = 4
+  integer         :: polar_damp_cycles    = 5
   real(r8)        :: polar_damp_lat0      = 80.0_r8
+  logical         :: polar_damp_phs       = .false.
+  real(r8)        :: polar_damp_phs_lat0  = 85.0_r8
   logical         :: use_div_damp         = .false.
   integer         :: div_damp_order       = 2
   integer         :: div_damp_j0          = 0
   integer         :: div_damp_k0          = 3
-  real(r8)        :: div_damp_imp_lat0    = 80
-  real(r8)        :: div_damp_coef2_top   = 0.02_r8
-  real(r8)        :: div_damp_coef2_pole  = 0.005_r8
+  real(r8)        :: div_damp_imp_lat0    = 90
+  real(r8)        :: div_damp_upper       = 2.0_r8
+  real(r8)        :: div_damp_polar       = 0.5_r8
+  real(r8)        :: div_damp_exp         = 0.01_r8
   real(r8)        :: div_damp_coef2       = 1.0_r8 / 128.0_r8
   real(r8)        :: div_damp_coef4       = 0.01_r8
-  real(r8)        :: div_damp_decay_top   = 0.01_r8
-  real(r8)        :: div_damp_decay_pole  = 0.01_r8
-  real(r8)        :: div_damp_3d_coef     = 0.1_r8
   logical         :: use_vor_damp         = .false.
   integer         :: vor_damp_order       = 2
-  real(r8)        :: vor_damp_imp_lat0    = 80
+  real(r8)        :: vor_damp_imp_lat0    = 90
   real(r8)        :: vor_damp_lat0        = 70.0_r8
   real(r8)        :: vor_damp_decay       = 0.2_r8
   real(r8)        :: vor_damp_coef2       = 0.001_r8
   real(r8)        :: vor_damp_coef4       = 0.01_r8
-  real(r8)        :: vor_damp_bkg_coef    = 0.0001_r8
+  real(r8)        :: vor_damp_bkg_coef    = 0
   logical         :: use_rayleigh_damp    = .false.
+  real(r8)        :: rayleigh_damp_w_coef = 0.2
   logical         :: use_smag_damp        = .false.
   real(r8)        :: smag_damp_coef       = 0.2
 
@@ -99,6 +112,10 @@ module namelist_mod
   real(r8)        :: nest_lon_end(20)     = inf
   real(r8)        :: nest_lat_beg(20)     = inf
   real(r8)        :: nest_lat_end(20)     = inf
+
+  ! Test settings
+  logical         :: limit_pole_v         = .false.
+  real(r8)        :: limit_pole_v_wgt     = 0.4_r8
 
   namelist /gmcore_control/     &
     case_name                 , &
@@ -122,6 +139,7 @@ module namelist_mod
     restart_file              , &
     restart                   , &
     tangent_wgt_scheme        , &
+    implicit_w_wgt            , &
     vert_coord_scheme         , &
     vert_coord_template       , &
     refer_state_scheme        , &
@@ -130,12 +148,18 @@ module namelist_mod
     ke_cell_wgt               , &
     pv_scheme                 , &
     pv_pole_stokes            , &
-    pgf_scheme                , &
-    coriolis_scheme           , &
-    upwind_order_pt           , &
-    upwind_wgt_pt             , &
+    weno_order_pv             , &
     upwind_order_pv           , &
     upwind_wgt_pv             , &
+    pgf_scheme                , &
+    coriolis_scheme           , &
+    weno_order                , &
+    upwind_order_pt           , &
+    upwind_wgt                , &
+    upwind_wgt_pt             , &
+    vert_weno_order           , &
+    vert_upwind_order         , &
+    vert_upwind_wgt           , &
     split_scheme              , &
     time_scheme               , &
     fast_cycles               , &
@@ -146,11 +170,18 @@ module namelist_mod
     do_reduce_ke              , &
     use_polar_damp            , &
     polar_damp_order          , &
+    polar_damp_cycles         , &
     polar_damp_lat0           , &
+    polar_damp_phs            , &
+    polar_damp_phs_lat0       , &
     use_div_damp              , &
     div_damp_order            , &
     div_damp_imp_lat0         , &
     div_damp_j0               , &
+    div_damp_k0               , &
+    div_damp_upper            , &
+    div_damp_polar            , &
+    div_damp_exp              , &
     div_damp_coef2            , &
     div_damp_coef4            , &
     use_vor_damp              , &
@@ -162,6 +193,7 @@ module namelist_mod
     vor_damp_coef4            , &
     vor_damp_bkg_coef         , &
     use_rayleigh_damp         , &
+    rayleigh_damp_w_coef      , &
     use_smag_damp             , &
     smag_damp_coef            , &
     output_h0_vars            , &
@@ -172,7 +204,9 @@ module namelist_mod
     nest_lon_beg              , &
     nest_lon_end              , &
     nest_lat_beg              , &
-    nest_lat_end
+    nest_lat_end              , &
+    limit_pole_v              , &
+    limit_pole_v_wgt
 
 contains
 
@@ -191,6 +225,7 @@ contains
   subroutine print_namelist()
 
       write(*, *) '=================== GMCORE Parameters ==================='
+      write(*, *) 'case_name           = ', trim(case_name)
       write(*, *) 'num_lon             = ', to_str(num_lon)
       write(*, *) 'num_lat             = ', to_str(num_lat)
       write(*, *) 'num_lev             = ', to_str(num_lev)
@@ -202,8 +237,8 @@ contains
       write(*, *) 'nonhydrostatic      = ', to_str(nonhydrostatic)
       write(*, *) 'vert_coord_scheme   = ', trim(vert_coord_scheme)
       write(*, *) 'vert_coord_template = ', trim(vert_coord_template)
-      write(*, *) 'ptop                = ', to_str(ptop, 2)
-      write(*, *) 'dt_in_seconds       = ', to_str(int(dt_in_seconds))
+      write(*, *) 'ptop                = ', to_str(ptop, 4)
+      write(*, *) 'dt_in_seconds       = ', to_str(dt_in_seconds, 2)
       write(*, *) 'pgf_scheme          = ', trim(pgf_scheme)
       write(*, *) 'ke_scheme           = ', to_str(ke_scheme)
     if (ke_scheme == 2) then
@@ -211,20 +246,26 @@ contains
     end if
       write(*, *) 'pv_scheme           = ', to_str(pv_scheme)
       write(*, *) 'pv_pole_stokes      = ', to_str(pv_pole_stokes)
-      write(*, *) 'time_scheme         = ', trim(time_scheme)
-    if (upwind_order_pt > 0) then
-      write(*, *) 'upwind_order_pt     = ', to_str(upwind_order_pt)
-      write(*, *) 'upwind_wgt_pt       = ', to_str(upwind_wgt_pt, 2)
-    end if
-    if (pv_scheme > 1) then
+    if (pv_scheme == 2) then
       write(*, *) 'upwind_order_pv     = ', to_str(upwind_order_pv)
       write(*, *) 'upwind_wgt_pv       = ', to_str(upwind_wgt_pv, 2)
+    else if (pv_scheme == 3) then
+      write(*, *) 'weno_order_pv       = ', to_str(weno_order_pv)
+    end if
+      write(*, *) 'time_scheme         = ', trim(time_scheme)
+      write(*, *) 'weno_order          = ', to_str(weno_order)
+      write(*, *) 'upwind_order_pt     = ', to_str(upwind_order_pt)
+    if (upwind_order_pt > 0) then
+      write(*, *) 'upwind_wgt          = ', to_str(upwind_wgt, 2)
+      write(*, *) 'upwind_wgt_pt       = ', to_str(upwind_wgt_pt, 2)
     end if
       write(*, *) 'reduce_pv_directly  = ', to_str(reduce_pv_directly)
       write(*, *) 'do_reduce_ke        = ', to_str(do_reduce_ke)
       write(*, *) 'use_div_damp        = ', to_str(use_div_damp)
     if (use_div_damp) then
       write(*, *) 'div_damp_coef2      = ', to_str(div_damp_coef2, 3)
+      write(*, *) 'div_damp_upper      = ', to_str(div_damp_upper, 3)
+      write(*, *) 'div_damp_polar      = ', to_str(div_damp_polar, 3)
     end if
       write(*, *) 'use_vor_damp        = ', to_str(use_vor_damp)
     if (use_vor_damp) then
@@ -233,7 +274,18 @@ contains
       write(*, *) 'vor_damp_coef2      = ', to_str(vor_damp_coef2, 3)
     end if
       write(*, *) 'use_polar_damp      = ', to_str(use_polar_damp)
+    if (use_polar_damp) then
+      write(*, *) 'polar_damp_order    = ', to_str(polar_damp_order)
+      write(*, *) 'polar_damp_cycles   = ', to_str(polar_damp_cycles)
+      write(*, *) 'polar_damp_lat0     = ', to_str(polar_damp_lat0, 2)
+      write(*, *) 'polar_damp_phs      = ', to_str(polar_damp_phs)
+      write(*, *) 'polar_damp_phs_lat0 = ', to_str(polar_damp_phs_lat0, 2)
+    end if
       write(*, *) 'use_rayleigh_damp   = ', to_str(use_rayleigh_damp)
+    if (nonhydrostatic) then
+      write(*, *) 'implicit_w_wgt      = ', to_str(implicit_w_wgt, 3)
+      write(*, *) 'rayleigh_damp_w_coef= ', to_str(rayleigh_damp_w_coef, 2)
+    end if
       write(*, *) 'use_smag_damp       = ', to_str(use_smag_damp)
     if (use_smag_damp) then
       write(*, *) 'smag_damp_coef      = ', to_str(smag_damp_coef, 1)
