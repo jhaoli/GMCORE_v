@@ -400,13 +400,13 @@ contains
 
     call interp_cell_to_lon_edge(state%mesh, state%pt, state%pt_lon, reversed_area=.true., u=state%u, upwind_wgt_=upwind_wgt_pt, enhance_pole=.true.)
     call interp_cell_to_lat_edge(state%mesh, state%pt, state%pt_lat, reversed_area=.true., v=state%v, upwind_wgt_=upwind_wgt_pt, enhance_pole=.true.)
-    call fill_halo(block, state%pt_lon, full_lon=.false., full_lat=.true., full_lev=.true., east_halo=.false., south_halo=.false., north_halo=.false.)
+    call fill_halo(block, state%pt_lon, full_lon=.false., full_lat=.true., full_lev=.true., south_halo=.false., north_halo=.false.)
 #ifdef V_POLE
     call fill_halo(block, state%pt_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., east_halo=.false., south_halo=.false.)
 #else
     call fill_halo(block, state%pt_lat, full_lon=.true., full_lat=.false., full_lev=.true., west_halo=.false., east_halo=.false., north_halo=.false.)
 #endif
-    call interp_cell_to_lev_edge(state%mesh, state%pt, state%pt_lev)     
+    call interp_cell_to_lev_edge(state%mesh, state%pt, state%pt_lev, w=state%wedphdlev_lev, upwind_wgt_=upwind_wgt_pt)
 
   end subroutine interp_pt
 
@@ -489,7 +489,7 @@ contains
     case (1)
       call interp_pv_midpoint(block, state)
     case (2)
-        call interp_pv_upwind(block, state, upwind_wgt_=upwind_wgt_pv, enhance_pole=.false.)
+      call interp_pv_upwind(block, state, upwind_wgt_=upwind_wgt_pv, enhance_pole=.false.)
     case (3)
       call interp_pv_apvm(block, state, dt)
     case default

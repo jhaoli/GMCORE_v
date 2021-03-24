@@ -148,7 +148,7 @@ contains
     allocate(reduced_mesh%weights(reduce_factor))
     reduced_mesh%weights = 1.0_r8 / reduce_factor
 
-    reduced_mesh%halo_width    = merge(2, 1, pv_scheme == 2 .or. upwind_order_pt > 0)
+    reduced_mesh%halo_width    = 2 
     reduced_mesh%num_full_lon  = raw_mesh%num_full_lon / reduce_factor
     reduced_mesh%num_half_lon  = raw_mesh%num_half_lon / reduce_factor
     reduced_mesh%full_lon_ibeg = raw_mesh%full_lon_ibeg / reduce_factor + 1
@@ -413,10 +413,10 @@ contains
         call apply_reduce(reduce_args(mf_lon_n   , reduce_mf_lon_n   ))
         call apply_reduce(reduce_args(mf_lat_n   , reduce_mf_lat_n   ))
         if (.not. reduce_pv_directly .or. pv_scheme == 3) then
-          call apply_reduce(reduce_args(m_lon      , reduce_m_lon      ))
-          call apply_reduce(reduce_args(m_lat      , reduce_m_lat      ))
-          call apply_reduce(reduce_args(u          , reduce_u          ))
-          call apply_reduce(reduce_args(v          , reduce_v          ))
+          call apply_reduce(reduce_args(m_lon    , reduce_m_lon      ))
+          call apply_reduce(reduce_args(m_lat    , reduce_m_lat      ))
+          call apply_reduce(reduce_args(u        , reduce_u          ))
+          call apply_reduce(reduce_args(v        , reduce_v          ))
         end if
         call apply_reduce(reduce_args(ke         , reduce_ke         ))
         call apply_reduce(reduce_args(pt         , reduce_pt         ))
@@ -436,7 +436,7 @@ contains
           call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon     ))
           call apply_reduce(reduce_args(pv_lat     , reduce_pv_lat     ))
         else
-          call apply_reduce(reduce_args(pv           , reduce_pv         ))
+          call apply_reduce(reduce_args(pv         , reduce_pv         ))
           select case (pv_scheme)
           case (1) !midpoint
             call apply_reduce(reduce_args(pv_lon     , reduce_pv_lon_midpoint))
@@ -1472,21 +1472,7 @@ contains
                ptf_lon  => reduced_state%ptf_lon)
 
     ! Upwind-biased interpolation
-    if (upwind_order_pt == 1) then
-      beta = upwind_wgt_pt * pole_wgt(j+buf_j)
-      do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          pt_lon(k,i,buf_j,move) = upwind1(sign(1.0_r8, mf_lon_n(k,i,buf_j,move)), beta, pt(k,i:i+1,buf_j,move))
-        end do
-      end do
-    else if (upwind_order_pt == 3) then
-      beta = upwind_wgt_pt * pole_wgt(j+buf_j)
-      do i = mesh%half_lon_ibeg, mesh%half_lon_iend
-        do k = mesh%full_lev_ibeg, mesh%full_lev_iend
-          pt_lon(k,i,buf_j,move) = upwind3(sign(1.0_r8, mf_lon_n(k,i,buf_j,move)), beta, pt(k,i-1:i+2,buf_j,move))
-        end do
-      end do
-    else
+    if (upwind_order == -1) then
       do i = mesh%half_lon_ibeg, mesh%half_lon_iend
         do k = mesh%full_lev_ibeg, mesh%full_lev_iend
           pt_lon(k,i,buf_j,move) = (mesh%area_lon_east(buf_j) * pt(k,i  ,buf_j,move) + &
@@ -1494,6 +1480,22 @@ contains
                                    ) / mesh%area_lon(buf_j)
         end do
       end do
+    else
+      select case (upwind_order)
+      case (1)
+        beta = upwind_wgt_pt * pole_wgt(j+buf_j)
+        do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+          do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+            pt_lon(k,i,buf_j,move) = upwind1(sign(1.0_r8, mf_lon_n(k,i,buf_j,move)), beta, pt(k,i:i+1,buf_j,move))
+          end do
+        end do
+      case (3)
+        do i = mesh%half_lon_ibeg, mesh%half_lon_iend
+          do k = mesh%full_lev_ibeg, mesh%full_lev_iend
+            pt_lon(k,i,buf_j,move) = upwind3(sign(1.0_r8, mf_lon_n(k,i,buf_j,move)), beta, pt(k,i-1:i+2,buf_j,move))
+          end do
+        end do
+      end select
     end if
 
     do i = reduced_mesh%half_lon_ibeg, reduced_mesh%half_lon_iend

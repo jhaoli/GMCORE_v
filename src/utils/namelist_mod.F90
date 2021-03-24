@@ -50,7 +50,7 @@ module namelist_mod
   integer         :: coriolis_scheme      = 1
 
   integer         :: weno_order           = -1 ! -1, 3
-  integer         :: upwind_order_pt      = -1 ! -1, 1, 3
+  integer         :: upwind_order         = -1 ! -1, 1, 3
   real(r8)        :: upwind_wgt           = 1.0_r8
   real(r8)        :: upwind_wgt_pt        = 0.25_r8
 
@@ -154,7 +154,7 @@ module namelist_mod
     pgf_scheme                , &
     coriolis_scheme           , &
     weno_order                , &
-    upwind_order_pt           , &
+    upwind_order              , &
     upwind_wgt                , &
     upwind_wgt_pt             , &
     vert_weno_order           , &
@@ -254,10 +254,10 @@ contains
     end if
       write(*, *) 'time_scheme         = ', trim(time_scheme)
       write(*, *) 'weno_order          = ', to_str(weno_order)
-      write(*, *) 'upwind_order_pt     = ', to_str(upwind_order_pt)
-    if (upwind_order_pt > 0) then
+      write(*, *) 'upwind_order        = ', to_str(upwind_order)
+    if (upwind_order > 0) then
       write(*, *) 'upwind_wgt          = ', to_str(upwind_wgt, 2)
-      write(*, *) 'upwind_wgt_pt       = ', to_str(upwind_wgt_pt, 2)
+      write(*, *) 'upwind_wgt          = ', to_str(upwind_wgt, 2)
     end if
       write(*, *) 'reduce_pv_directly  = ', to_str(reduce_pv_directly)
       write(*, *) 'do_reduce_ke        = ', to_str(do_reduce_ke)
