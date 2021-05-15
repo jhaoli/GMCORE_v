@@ -334,7 +334,7 @@ contains
         do j = mesh%half_lat_ibeg, mesh%half_lat_iend
           do i = mesh%full_lon_ibeg, mesh%full_lon_iend
             ut = state%mf_lat_t(i,j,k) / state%m_lat(i,j,k)
-            b = abs(ut) / sqrt(ut**2 + state%v(i,j,k)**2)
+            b = abs(ut) / sqrt(ut**2 + state%v(i,j,k)**2 + eps)
             state%pv_lat(i,j,k) = b * upwind3(sign(1.0_r8, ut), beta_lat(j), state%pv(i-2:i+1,j,k)) + &
                         (1 - b) * 0.5_r8 * (state%pv(i-1,j,k) + state%pv(i,j,k))
           end do
@@ -368,12 +368,12 @@ contains
             do i = mesh%half_lon_ibeg, mesh%half_lon_iend
 #ifdef V_POLE
               vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
-              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2 + eps)
               state%pv_lon(i,j,k) = b * upwind1(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j:j+1,k)) + &
                              (1 - b) * 0.5_r8 * (state%pv(i,j+1,k) + state%pv(i,j,k))
 #else
               vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
-              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2 + eps)
               state%pv_lon(i,j,k) = b * upwind1(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j-1:j,k)) + &
                              (1 - b) * 0.5_r8 * (state%pv(i,j-1,k) + state%pv(i,j,k))
 #endif
@@ -382,12 +382,12 @@ contains
             do i = mesh%half_lon_ibeg, mesh%half_lon_iend
 #ifdef V_POLE
               vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
-              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2 + eps)
               state%pv_lon(i,j,k) = b * upwind3(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j-1:j+2,k)) + &
                              (1 - b) * 0.5_r8 * (state%pv(i,j+1,k) + state%pv(i,j,k))
 #else
               vt = state%mf_lon_t(i,j,k) / state%m_lon(i,j,k)
-              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2)
+              b = abs(vt) / sqrt(state%u(i,j,k)**2 + vt**2 + eps)
               state%pv_lon(i,j,k) = b * upwind3(sign(1.0_r8, vt), beta_lon(j), state%pv(i,j-2:j+1,k)) + &
                              (1 - b) * 0.5_r8 * (state%pv(i,j-1,k) + state%pv(i,j,k))
 #endif

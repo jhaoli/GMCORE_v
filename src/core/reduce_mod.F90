@@ -403,7 +403,7 @@ contains
     type(reduced_mesh_type), intent(in) :: reduced_mesh
     type(reduced_static_type), intent(in) :: reduced_static
     type(reduced_state_type), intent(inout) :: reduced_state
-    real(r8), intent(in) :: dt
+      real(r8), intent(in) :: dt
     integer, intent(in) :: pass
 
 #define reduce_args(x, sub) lbound(reduced_state%x, 3), ubound(reduced_state%x, 3), j, block, raw_mesh, raw_state, reduced_mesh, reduced_static, reduced_state, sub, dt
@@ -1199,12 +1199,12 @@ contains
           do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
 #ifdef V_POLE
           vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
-          b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+          b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2 + eps)
           pv_lon(k,i,buf_j,move) = b * upwind1(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j:buf_j+1,move)) + &
                                (1 - b) * 0.5_r8 * (pv(k,i,buf_j,move) + pv(k,i,buf_j+1,move))
 #else
           vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
-          b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+          b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2 + eps)
           pv_lon(k,i,buf_j,move) = b * upwind1(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j-1:buf_j,move)) + &
                                (1 - b) * 0.5_r8 * (pv(k,i,buf_j-1,move) + pv(k,i,buf_j,move))
 #endif  
@@ -1215,12 +1215,12 @@ contains
           do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
 #ifdef V_POLE
             vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
-            b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+            b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2 + eps)
             pv_lon(k,i,buf_j,move) = b * upwind3(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j-1:buf_j+2,move)) + &
                (1 - b) * 0.5_r8 * (pv(k,i,buf_j+1,move) + pv(k,i,buf_j,move))
 #else
             vt = mf_lon_t(k,i,buf_j,move) / m_lon(k,i,buf_j,move)
-            b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2)
+            b  = abs(vt) / sqrt(un(k,i,buf_j,move)**2 + vt**2 + eps)
             pv_lon(k,i,buf_j,move) = b * upwind3(sign(1.0_r8, vt), upwind_wgt_pv, pv(k,i,buf_j-2:buf_j+1,move)) + &
                (1 - b) * 0.5_r8 * (pv(k,i,buf_j-1,move) + pv(k,i,buf_j,move))
 #endif
@@ -1347,7 +1347,7 @@ contains
         do i = reduced_mesh%full_lon_ibeg, reduced_mesh%full_lon_iend
           do k = reduced_mesh%full_lev_ibeg, reduced_mesh%full_lev_iend
             ut = mf_lat_t(k,i,buf_j,move) / m_lat(k,i,buf_j,move)
-            b  = abs(ut) / sqrt(ut**2 + vn(k,i,buf_j,move)**2)
+            b  = abs(ut) / sqrt(ut**2 + vn(k,i,buf_j,move)**2 + eps)
             pv_lat(k,i,buf_j,move) = b * upwind3(sign(1.0_r8, ut), upwind_wgt_pv, pv(k,i-2:i+1,buf_j,move))+ &
                               (1 - b) * 0.5_r8 * (pv(k,i-1,buf_j,move) + pv(k,i,buf_j,move))
           end do
